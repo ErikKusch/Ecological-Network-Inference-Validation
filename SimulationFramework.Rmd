@@ -1,0 +1,20 @@
+---
+title: "SimulationFramework"
+author: "Erik Kusch; Anna Vinton"
+date: '2022-06-24'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Base Simulation
+
+One-species in space through time.
+
+Workflow:  
+
+```{r}
+```
+
