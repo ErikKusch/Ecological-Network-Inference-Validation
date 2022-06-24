@@ -12,9 +12,31 @@ knitr::opts_chunk$set(echo = TRUE)
 # Base Simulation
 
 One-species in space through time.
-
+base code from: https://dmcglinn.github.io/quant_methods/lessons/simulations.html
 Workflow:  
 
 ```{r}
+# simple model of logistic growth
+dNt <- function(r, N) r * N * (1 - N)
+
+# iterate growth through time
+Nt <- function(r, N, t) {
+  for (i in 1:(t - 1)) {
+    # population at next time step is population at current time + pop growth
+    N[i + 1] <- N[i] + dNt(r, N[i])
+  }
+  N
+}
+
+
+t <- 100
+r <- 0.1
+# lets consider 4 different starting abundances (i.e., N(t=0) values)
+Nt0 =  0.5
+ plot(1:t, Nt(r, Nt0, t), type = 'l', xlab = 'time', ylab = 'Population size',
+    main = paste('N(t=0) =', Nt0), ylim =c(0, 2))
+  abline(h = 1, lty = 2, col='grey')
+
 ```
 
+#Next step: indidividuals!!
