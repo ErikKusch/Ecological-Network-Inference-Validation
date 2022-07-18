@@ -31,6 +31,7 @@ The final simulation function will be characterised by:
 For the following, we require some packages - mostly for visualisations. These are:
 ```{r, packages}
 library(ggplot2) # for visualisations
+library(cowplot) # for combining plots
 ```
 
 \clearpage
@@ -475,3 +476,247 @@ ggplot(rbind(SIM_2SpecDiffTr$Individuals, SIM_2SpecSamek$Individuals),
 
 Cool. When we have species that prefer different environments (as defined by their trait-value), we see them being selected for in their preferred environments. When traits are random, so is space-utilisation by each species.
 
+\clearpage
+
+## Adding a Second Species
+
+As we add a second species to our simulation, we do not take into account any specific interaction signs, strength, or spatial effect thereof. For now, our two species will simply be in competition with one another.
+
+As a result, both our *dynamic death rate* `dt()` and *environment function* `env.xy()` remain unaltered:
+```{r}
+dt <- function(b0, d0, k, N, Tr, Env, sd){d0 + N * exp((Tr-Env)^2)/sd * (b0 - d0)/k}
+```
+```{r}
+env.xy <- function(x = NULL){x}
+```
+
+Now on to implement our two species in the simulation. Again, I only annotate changes in the function:
+```{r}
+SIM.Comp <- function(tsteps = 3e3, d0 = 0.2, b0 = 0.8,
+                    k_vec = 100, # carrying capacity for each species in ID_df
+                    sd = 1, 
+                    ID_df = NULL # this now needs to hold different species
+){
+  ## object creation
+  ### data frame to hold population level data
+  Pop_df <- data.frame(N = nrow(ID_df), 
+                       Gridcell = NA, # gridcell binning is not implemented yet
+                       t = NA)
+  ### progress bar
+  pb <- txtProgressBar(max = (tsteps-1), style = 3)
+  ## simulation loop over time steps
+  for(t in 1:(tsteps-1)){
+  Pop_df$t[t] <- t
+  ### vectors for storing birth and death probabilities for each individual
+  birth_prob <- rep(NA, nrow(ID_df))
+  death_prob <- rep(NA, nrow(ID_df))
+  for(i in 1:nrow(ID_df)){
+    birth_prob[i] <- b0
+    death_prob[i] <- dt(b0 = b0, d0 = d0,
+                        # select carrying capacity for species[i]
+                        k = k_vec[which(names(k_vec) == ID_df$Species[i])],
+                        N = Pop_df$N[t], # @Anna - should this not be the N of species i?
+                        Tr = ID_df$Trait[i], Env = env.xy(x = ID_df$Location[i]), sd = sd)
+  }
+  names(birth_prob) <- names(death_prob) <- ID_df$ID
+  ## event identification
+  EventSample_vec <- paste(rep(c("Birth", "Death"), each = nrow(ID_df)), 
+                           names(birth_prob), sep="_")
+  event <- sample(
+    EventSample_vec,
+    size = 1,
+    prob = c(birth_prob, death_prob)
+  )
+  ## event evaluation
+  event_eval <- strsplit(event, split = "_")
+  event_ID <- event_eval[[1]][2]
+  event_EV <- event_eval[[1]][1]
+  if(event_EV == "Birth"){
+    append_df <- ID_df[ID_df$ID == event_ID, ]
+    append_df$ID <- max(ID_df$ID)+1
+    movement <- rnorm(1, 0, 1) # this needs more parameterisation
+    append_df$Location <- append_df$Location+movement
+    ID_df <- rbind(ID_df, append_df)
+  }
+  if(event_EV == "Death"){
+    ID_df <- ID_df[ID_df$ID != event_ID, ]
+  }
+
+  ## recalculate population size
+  Pop_df <- rbind(Pop_df, data.frame(N = nrow(ID_df), Gridcell = NA, t = t+1))
+  setTxtProgressBar(pb, t)
+  if(Pop_df$N[t+1] == 0){warning("Population went extinct"); break}
+  }
+  return(list(Individuals = ID_df, Populations = Pop_df))
+}
+```
+
+This time, I want to look at how different relative carrying capacities and trait expression between species affect the simulation.
+
+## Binning by Gridcells \& Limitting Environmental Space Range
+
+To make this simulation output ready for network inference methodology, we need to represent the data on a grid-by-grid cell. Also, the movement of the offspring in previous iterations of this simulation is capable of pushing occurrences into environmental ranges we did not intend for (such as negative numbers). Here, I address both.
+
+Implementing these "fixes" requires no change to our *dynamic death rate* `dt()` and *environment function* `env.xy()` and so they remain unaltered:
+```{r}
+dt <- function(b0, d0, k, N, Tr, Env, sd){d0 + N * exp((Tr-Env)^2)/sd * (b0 - d0)/k}
+```
+```{r}
+env.xy <- function(x = NULL){x}
+```
+
+Now on to implement our grid-cell binning an environment limiting. Again, I only annotate changes in the function:
+```{r}
+SIM.Comp <- function(tsteps = 3e3, d0 = 0.2, b0 = 0.8,
+                    k_vec = 100, 
+                    sd = 1, 
+                    ID_df = NULL,
+                    Env_range = c(0, 10), # range of permitted environmental values
+                    n_Grid = 100 # how many gridcells to draw
+){
+  ## object creation
+  ### data frame that stores grid coordinates, GridX holds the left-most starting-point of each gridcell
+  grids_df <- data.frame(
+    GridID = 1:n_Grid,
+    GridX = seq(from = Env_range[1], to = Env_range[2], length = n_Grid+1)[-(n_Grid+1)]
+  )
+  ### data frame to hold population level data
+  GridsID_vec <- sapply(ID_df$Location, FUN = function(x){tail(which(x >= grids_df$GridX), 1)}) # identify gridcell for each individual
+  Pop_ls <- list(table(GridsID_vec, ID_df$Species)) # store populations of each species binned by gridcell as a list element 
+  Pop_df <- data.frame(N = nrow(ID_df),
+                       t = NA)
+  ### progress bar
+  pb <- txtProgressBar(max = (tsteps-1), style = 3)
+  ## simulation loop over time steps
+  for(t in 1:(tsteps-1)){
+  Pop_df$t[t] <- t
+  names(Pop_ls)[length(Pop_ls)] <- t
+  ### vectors for storing birth and death probabilities for each individual
+  birth_prob <- rep(NA, nrow(ID_df))
+  death_prob <- rep(NA, nrow(ID_df))
+  for(i in 1:nrow(ID_df)){
+    birth_prob[i] <- b0
+    death_prob[i] <- dt(b0 = b0, d0 = d0,
+                        # select carrying capacity for species[i]
+                        k = k_vec[which(names(k_vec) == ID_df$Species[i])],
+                        N = Pop_df$N[t], # @Anna - should this not be the N of species i?
+                        Tr = ID_df$Trait[i], Env = env.xy(x = ID_df$Location[i]), sd = sd)
+  }
+  names(birth_prob) <- names(death_prob) <- ID_df$ID
+  ## event identification
+  EventSample_vec <- paste(rep(c("Birth", "Death"), each = nrow(ID_df)), 
+                           names(birth_prob), sep="_")
+  event <- sample(
+    EventSample_vec,
+    size = 1,
+    prob = c(birth_prob, death_prob)
+  )
+  ## event evaluation
+  event_eval <- strsplit(event, split = "_")
+  event_ID <- event_eval[[1]][2]
+  event_EV <- event_eval[[1]][1]
+  if(event_EV == "Birth"){
+    append_df <- ID_df[ID_df$ID == event_ID, ]
+    append_df$ID <- max(ID_df$ID)+1
+    movement <- rnorm(1, 0, 1) # this needs more parametrisation
+    newloc <- append_df$Location+movement
+    ## ensuring species don't disperse beyond the environmental limit
+    newloc <- ifelse(newloc<Env_range[1], Env_range[1], newloc)
+    newloc <- ifelse(newloc>Env_range[2], Env_range[2], newloc)
+    append_df$Location <- newloc
+    ID_df <- rbind(ID_df, append_df)
+  }
+  if(event_EV == "Death"){
+    ID_df <- ID_df[ID_df$ID != event_ID, ]
+  }
+
+  GridsID_vec <- sapply(ID_df$Location, FUN = function(x){tail(which(x >= grids_df$GridX), 1)}) # identify gridcell for each individual
+  Pop_ls <- c(Pop_ls, # store populations of each species binned by gridcell as a
+              list(table(GridsID_vec, ID_df$Species))
+              )
+  names(Pop_ls)[length(Pop_ls)] <- t+1
+  ## recalculate population size
+  Pop_df <- rbind(Pop_df, data.frame(N = nrow(ID_df), t = t+1))
+  setTxtProgressBar(pb, t)
+  if(Pop_df$N[t+1] == 0){warning("Population went extinct"); break}
+  }
+  return(list(Individuals = ID_df, Populations = Pop_df, 
+              GriddedPopulations = Pop_ls # returning the gridded population data
+              ))
+}
+```
+
+Now, let's see how this works out. Here, I use the exact same simulation specification as I have done in the previous development step when I investigated different trait expressions per species. I do so to check whether I can see how the initially uniformly distributed species settle into their respective "optimal" grid cells over time:
+
+```{r, message=FALSE, fig.keep="all", results="hide", warning=FALSE}
+# individual data frame
+ID_df = data.frame(ID = 1:1e3,
+                   Trait = NA,
+                   Location = NA,
+                   Species = sample(c("Sp1", "Sp2"), size = 1e3, replace = TRUE))
+
+# dummy values for traits
+set.seed(42)
+ID_df$Trait[ID_df$Species == "Sp1"] <- runif(n = length(ID_df$Trait[ID_df$Species == "Sp1"]), 
+                                             min = 0, max = 5.5)
+ID_df$Trait[ID_df$Species == "Sp2"] <- runif(n = length(ID_df$Trait[ID_df$Species == "Sp2"]), 
+                                             min = 4.5, max = 10)
+# dummy locations
+set.seed(42)
+ID_df$Location <- runif(n = nrow(ID_df), min = 0, max = 10)
+# carrying capacity for each species
+k_vec <- c(200, 200)
+names(k_vec) <- c("Sp1", "Sp2")
+SIM_Grid <- SIM.Comp(tsteps = 3e3, d0 = 0.2, b0 = 0.8,
+                     k_vec = k_vec, sd = 1, ID_df = ID_df,
+                     Env_range = c(0, 10), # range of permitted environmental values
+                     n_Grid = 100 # how many gridcells to draw
+                    )
+```
+
+Now I extract the data and calculate the difference in population size (as percentages) between the two species in each grid cell at each time step (a value of 100 identifies a grid cell entirely populated by species 1):
+
+```{r, echo = FALSE, fig.height = 3}
+## extracting the data
+GridPop_ls <- lapply(names(SIM_Grid$GriddedPopulations), FUN = function(x){
+  ## difference per cell in percent
+  DiffPerc <- (SIM_Grid$GriddedPopulations[[x]][,1]-SIM_Grid$GriddedPopulations[[x]][,2])/
+      (SIM_Grid$GriddedPopulations[[x]][,1]+SIM_Grid$GriddedPopulations[[x]][,2])
+  names(DiffPerc) <- as.numeric(rownames(SIM_Grid$GriddedPopulations[[x]]))
+  ## data frame for reporting results
+  Report_df <- data.frame(
+    GridCell = 1:100,
+    DiffPerc = NA,
+    t = x)
+  ## filling data frame with results
+  Report_df$DiffPerc[match(names(DiffPerc), Report_df$GridCell)] <- DiffPerc
+  Report_df
+  }
+  )
+## creating final data frame for plotting
+GridPop_df <- do.call(rbind, GridPop_ls)
+GridPop_df$t <- as.numeric(GridPop_df$t)
+GridPop_df$GridCell <- as.numeric(GridPop_df$GridCell)
+```
+
+Finally, I plot the grid cells through time side-by-side with the individuals of the final time step of the above simulation:
+
+```{r, echo = FALSE, fig.height = 3, fig.width=9}
+## plot for the grid cells through time
+GridPlot <- ggplot(GridPop_df,
+       aes(x = t, y = GridCell, fill = DiffPerc)) +
+  geom_tile() +
+  scale_fill_gradient2(name="Sp1 vs. Sp2 %") + 
+  theme_bw()
+
+## previous plot of individuals at the final time step
+TraitPlot <- ggplot(SIM_2SpecDiffTr$Individuals,
+       aes(x = Location, y = Trait, pch = Species, col = Species)) +
+  geom_point(size = 3) + 
+  theme_bw()
+
+## plotting both together
+cowplot::plot_grid(GridPlot, TraitPlot, rel_widths = c(7,3))
+```
+
+They agree with each other, but now we can also track the populations through time and space!
