@@ -11,6 +11,8 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+\clearpage
+
 # Introduction
 
 ## Scientific Goals
@@ -478,81 +480,6 @@ Cool. When we have species that prefer different environments (as defined by the
 
 \clearpage
 
-## Adding a Second Species
-
-As we add a second species to our simulation, we do not take into account any specific interaction signs, strength, or spatial effect thereof. For now, our two species will simply be in competition with one another.
-
-As a result, both our *dynamic death rate* `dt()` and *environment function* `env.xy()` remain unaltered:
-```{r}
-dt <- function(b0, d0, k, N, Tr, Env, sd){d0 + N * exp((Tr-Env)^2)/sd * (b0 - d0)/k}
-```
-```{r}
-env.xy <- function(x = NULL){x}
-```
-
-Now on to implement our two species in the simulation. Again, I only annotate changes in the function:
-```{r}
-SIM.Comp <- function(tsteps = 3e3, d0 = 0.2, b0 = 0.8,
-                    k_vec = 100, # carrying capacity for each species in ID_df
-                    sd = 1, 
-                    ID_df = NULL # this now needs to hold different species
-){
-  ## object creation
-  ### data frame to hold population level data
-  Pop_df <- data.frame(N = nrow(ID_df), 
-                       Gridcell = NA, # gridcell binning is not implemented yet
-                       t = NA)
-  ### progress bar
-  pb <- txtProgressBar(max = (tsteps-1), style = 3)
-  ## simulation loop over time steps
-  for(t in 1:(tsteps-1)){
-  Pop_df$t[t] <- t
-  ### vectors for storing birth and death probabilities for each individual
-  birth_prob <- rep(NA, nrow(ID_df))
-  death_prob <- rep(NA, nrow(ID_df))
-  for(i in 1:nrow(ID_df)){
-    birth_prob[i] <- b0
-    death_prob[i] <- dt(b0 = b0, d0 = d0,
-                        # select carrying capacity for species[i]
-                        k = k_vec[which(names(k_vec) == ID_df$Species[i])],
-                        N = Pop_df$N[t], # @Anna - should this not be the N of species i?
-                        Tr = ID_df$Trait[i], Env = env.xy(x = ID_df$Location[i]), sd = sd)
-  }
-  names(birth_prob) <- names(death_prob) <- ID_df$ID
-  ## event identification
-  EventSample_vec <- paste(rep(c("Birth", "Death"), each = nrow(ID_df)), 
-                           names(birth_prob), sep="_")
-  event <- sample(
-    EventSample_vec,
-    size = 1,
-    prob = c(birth_prob, death_prob)
-  )
-  ## event evaluation
-  event_eval <- strsplit(event, split = "_")
-  event_ID <- event_eval[[1]][2]
-  event_EV <- event_eval[[1]][1]
-  if(event_EV == "Birth"){
-    append_df <- ID_df[ID_df$ID == event_ID, ]
-    append_df$ID <- max(ID_df$ID)+1
-    movement <- rnorm(1, 0, 1) # this needs more parameterisation
-    append_df$Location <- append_df$Location+movement
-    ID_df <- rbind(ID_df, append_df)
-  }
-  if(event_EV == "Death"){
-    ID_df <- ID_df[ID_df$ID != event_ID, ]
-  }
-
-  ## recalculate population size
-  Pop_df <- rbind(Pop_df, data.frame(N = nrow(ID_df), Gridcell = NA, t = t+1))
-  setTxtProgressBar(pb, t)
-  if(Pop_df$N[t+1] == 0){warning("Population went extinct"); break}
-  }
-  return(list(Individuals = ID_df, Populations = Pop_df))
-}
-```
-
-This time, I want to look at how different relative carrying capacities and trait expression between species affect the simulation.
-
 ## Binning by Gridcells \& Limitting Environmental Space Range
 
 To make this simulation output ready for network inference methodology, we need to represent the data on a grid-by-grid cell. Also, the movement of the offspring in previous iterations of this simulation is capable of pushing occurrences into environmental ranges we did not intend for (such as negative numbers). Here, I address both.
@@ -575,14 +502,18 @@ SIM.Comp <- function(tsteps = 3e3, d0 = 0.2, b0 = 0.8,
                     n_Grid = 100 # how many gridcells to draw
 ){
   ## object creation
-  ### data frame that stores grid coordinates, GridX holds the left-most starting-point of each gridcell
+  ### data frame that stores grid coordinates
+  ### -> GridX holds the left-most starting-point of each gridcell
   grids_df <- data.frame(
     GridID = 1:n_Grid,
     GridX = seq(from = Env_range[1], to = Env_range[2], length = n_Grid+1)[-(n_Grid+1)]
   )
   ### data frame to hold population level data
-  GridsID_vec <- sapply(ID_df$Location, FUN = function(x){tail(which(x >= grids_df$GridX), 1)}) # identify gridcell for each individual
-  Pop_ls <- list(table(GridsID_vec, ID_df$Species)) # store populations of each species binned by gridcell as a list element 
+  ### -> identify gridcell for each individual
+  GridsID_vec <- sapply(ID_df$Location, 
+                        FUN = function(x){tail(which(x >= grids_df$GridX), 1)}) 
+  ### -> store populations of each species binned by gridcell as a list element 
+  Pop_ls <- list(table(GridsID_vec, ID_df$Species))
   Pop_df <- data.frame(N = nrow(ID_df),
                        t = NA)
   ### progress bar
@@ -606,11 +537,7 @@ SIM.Comp <- function(tsteps = 3e3, d0 = 0.2, b0 = 0.8,
   ## event identification
   EventSample_vec <- paste(rep(c("Birth", "Death"), each = nrow(ID_df)), 
                            names(birth_prob), sep="_")
-  event <- sample(
-    EventSample_vec,
-    size = 1,
-    prob = c(birth_prob, death_prob)
-  )
+  event <- sample(EventSample_vec, size = 1, prob = c(birth_prob, death_prob))
   ## event evaluation
   event_eval <- strsplit(event, split = "_")
   event_ID <- event_eval[[1]][2]
@@ -626,14 +553,12 @@ SIM.Comp <- function(tsteps = 3e3, d0 = 0.2, b0 = 0.8,
     append_df$Location <- newloc
     ID_df <- rbind(ID_df, append_df)
   }
-  if(event_EV == "Death"){
-    ID_df <- ID_df[ID_df$ID != event_ID, ]
-  }
-
-  GridsID_vec <- sapply(ID_df$Location, FUN = function(x){tail(which(x >= grids_df$GridX), 1)}) # identify gridcell for each individual
-  Pop_ls <- c(Pop_ls, # store populations of each species binned by gridcell as a
-              list(table(GridsID_vec, ID_df$Species))
-              )
+  if(event_EV == "Death"){ID_df <- ID_df[ID_df$ID != event_ID, ]}
+  ### -> identify gridcell for each individual
+  GridsID_vec <- sapply(ID_df$Location, 
+                        FUN = function(x){tail(which(x >= grids_df$GridX), 1)}) 
+  Pop_ls <- c(Pop_ls,
+              list(table(GridsID_vec, ID_df$Species)))
   names(Pop_ls)[length(Pop_ls)] <- t+1
   ## recalculate population size
   Pop_df <- rbind(Pop_df, data.frame(N = nrow(ID_df), t = t+1))
@@ -676,12 +601,14 @@ SIM_Grid <- SIM.Comp(tsteps = 3e3, d0 = 0.2, b0 = 0.8,
 
 Now I extract the data and calculate the difference in population size (as percentages) between the two species in each grid cell at each time step (a value of 100 identifies a grid cell entirely populated by species 1):
 
-```{r, echo = FALSE, fig.height = 3}
+```{r}
 ## extracting the data
 GridPop_ls <- lapply(names(SIM_Grid$GriddedPopulations), FUN = function(x){
   ## difference per cell in percent
-  DiffPerc <- (SIM_Grid$GriddedPopulations[[x]][,1]-SIM_Grid$GriddedPopulations[[x]][,2])/
-      (SIM_Grid$GriddedPopulations[[x]][,1]+SIM_Grid$GriddedPopulations[[x]][,2])
+  DiffPerc <- (SIM_Grid$GriddedPopulations[[x]][,1]-
+                 SIM_Grid$GriddedPopulations[[x]][,2])/
+      (SIM_Grid$GriddedPopulations[[x]][,1]+
+         SIM_Grid$GriddedPopulations[[x]][,2])
   names(DiffPerc) <- as.numeric(rownames(SIM_Grid$GriddedPopulations[[x]]))
   ## data frame for reporting results
   Report_df <- data.frame(
@@ -710,9 +637,10 @@ GridPlot <- ggplot(GridPop_df,
   theme_bw()
 
 ## previous plot of individuals at the final time step
-TraitPlot <- ggplot(SIM_2SpecDiffTr$Individuals,
-       aes(x = Location, y = Trait, pch = Species, col = Species)) +
-  geom_point(size = 3) + 
+TraitPlot <- ggplot(SIM_Grid$Individuals,
+       aes(y = Location, x = Trait, pch = Species, col = Species)) +
+  geom_point(size = 1) + 
+  scale_color_manual(values = c("darkblue", "darkred")) + 
   theme_bw()
 
 ## plotting both together
@@ -720,3 +648,294 @@ cowplot::plot_grid(GridPlot, TraitPlot, rel_widths = c(7,3))
 ```
 
 They agree with each other, but now we can also track the populations through time and space!
+
+## Gillespie Algorithm
+
+So far, every iteration of our simulation framework evaluated one event per time-step. That is not realistic - multiple events happen to multiple individuals roughly at the same time and not in neat intervals. The number of events that happen scales with population size - the more individuals, the more events happen. But how do we determine just how many events happen at each time step? Simple. We don't. Instead, we make use of the Gillespie formulation which can be used to approximate the time which each event takes to complete. This has been implemented in a previous study by [Anna](https://onlinelibrary.wiley.com/doi/full/10.1002/ece3.6311).
+
+Implementing this has nothing to do with our *dynamic death rate* `dt()` and *environment function* `env.xy()` and so they remain unaltered:
+```{r}
+dt <- function(b0, d0, k, N, Tr, Env, sd){d0 + N * exp((Tr-Env)^2)/sd * (b0 - d0)/k}
+```
+```{r}
+env.xy <- function(x = NULL){x}
+```
+
+To implement the Gillespie algorithm, biological time in the simulation is advanced by a random intervals drawn from an exponential distribution whose rate is equal to 1/E where E is the sum of the rates of all possible events.
+
+This leads to many more simulation timesteps being run than before (each event is still one simulation step - we also refer to this as simulation time). So, we have to decide at what biological time intervals to sample and until which biological time to run our simulation. Consequently, our function gets two new arguments (`t_inter` and `t_max`) and loses the previous `tsteps` argument - we will run simulations until the biological time in `t_max` is reached (unless all our species go extinct before then).
+
+Lastly, I didn't like how much migration potential individuals received on birth so far. As a matter of fact, I commented in earlier code version that this mechanisms required further parametrisation. I have consequently established the `migration` argument in the `SIM.Comp()` function call. This numeric argument controls the standard deviation of the mean-0 normal distribution from which the migration direction and magnitude is drawn.
+
+Again, I only annotate the new bits to our simulation framework
+```{r}
+SIM.Comp <- function(d0 = 0.2, b0 = 0.8,
+                    k_vec = 100, 
+                    t_max = 100, # now defining until what biological time to run
+                    t_inter = 0.5, # at what time intervals to sample
+                    sd = 1, 
+                    ID_df = NULL,
+                    Env_range = c(0, 10),
+                    n_Grid = 100,
+                    migration = 0.1
+){
+  ## object creation
+  ### data frame that stores grid coordinates, 
+  grids_df <- data.frame(
+    GridID = 1:n_Grid,
+    GridX = seq(from = Env_range[1], to = Env_range[2], length = n_Grid+1)[-(n_Grid+1)]
+  )
+  ### data frame to hold population level data
+  GridsID_vec <- sapply(ID_df$Location, 
+                        FUN = function(x){tail(which(x >= grids_df$GridX), 1)}) 
+  ### populations of each species binned by gridcell as a list element 
+  Pop_ls <- list(table(GridsID_vec, ID_df$Species))
+  Pop_df <- data.frame(N = nrow(ID_df),
+                       t = NA)
+  ### setting star times
+  t <- 1 # start time at 1
+  Pop_df$t[nrow(Pop_df)] <- 1
+  names(Pop_ls)[length(Pop_ls)] <- 1
+  ### progress bar
+  pb <- txtProgressBar(max = t_max, style = 3)
+  ## simulation loop over time steps
+  while(t < t_max){ # now a while loop
+  ## vectors for storing birth and death probabilities for each individual
+  birth_prob <- rep(NA, nrow(ID_df))
+  death_prob <- rep(NA, nrow(ID_df))
+  for(i in 1:nrow(ID_df)){
+    birth_prob[i] <- b0
+    death_prob[i] <- dt(b0 = b0, d0 = d0,
+            k = k_vec[which(names(k_vec) == ID_df$Species[i])],
+            N = nrow(ID_df), # @Anna - should this not be the N of species i?
+            #' like so: #sum(ID_df$Species == ID_df$Species[i])
+            Tr = ID_df$Trait[i], Env = env.xy(x = ID_df$Location[i]), sd = sd)
+         
+  }
+  names(birth_prob) <- names(death_prob) <- ID_df$ID
+  ## event identification
+  EventSample_vec <- paste(rep(c("Birth", "Death"), each = nrow(ID_df)), 
+                           names(birth_prob), sep="_")
+  event <- sample(
+    EventSample_vec,
+    size = 1,
+    prob = c(birth_prob, death_prob)
+  )
+  ## event evaluation
+  event_eval <- strsplit(event, split = "_")
+  event_ID <- event_eval[[1]][2]
+  event_EV <- event_eval[[1]][1]
+  if(event_EV == "Birth"){
+    append_df <- ID_df[ID_df$ID == event_ID, ]
+    append_df$ID <- max(ID_df$ID)+1
+    movement <- rnorm(1, 0, migration) # new function argument
+    newloc <- append_df$Location+movement
+    ## ensuring species don't disperse beyond the environmental limit
+    newloc <- ifelse(newloc<Env_range[1], Env_range[1], newloc)
+    newloc <- ifelse(newloc>Env_range[2], Env_range[2], newloc)
+    append_df$Location <- newloc
+    ID_df <- rbind(ID_df, append_df)
+  }
+  if(event_EV == "Death"){
+    ID_df <- ID_df[ID_df$ID != event_ID, ]
+  }
+  
+  ## Gillespie time
+  ### identify by how much time advances
+  tadvance <- rexp(1, rate = sum(c(birth_prob, death_prob))) 
+  t <- t + tadvance
+  ### record data only if interval is met
+  if(t - Pop_df$t[nrow(Pop_df)] >= t_inter){
+    GridsID_vec <- sapply(ID_df$Location, 
+                          FUN = function(x){tail(which(x >= grids_df$GridX), 1)})
+  Pop_ls <- c(Pop_ls,
+              list(table(GridsID_vec, ID_df$Species))
+              )
+  names(Pop_ls)[length(Pop_ls)] <- t
+  ### recalculate population size
+  Pop_df <- rbind(Pop_df, data.frame(N = nrow(ID_df), t = t+1))
+  }
+  ## update progress
+  setTxtProgressBar(pb, t)
+  if(nrow(ID_df) == 0){warning("All species went extinct"); break}
+  }
+  return(list(Individuals = ID_df, Populations = Pop_df, 
+              GriddedPopulations = Pop_ls
+              ))
+}
+```
+
+Now to run this simulation. This time, I increase the value in `sd` to make the environment less harsh on our species, but I also establish initial trait values for each species no longer as drawn randomly from a uniform distribution, but from normal distributions. I also increase the carrying capacities for both species (they are still equal):
+```{r, message=FALSE, fig.keep="all", results="hide", eval = FALSE}
+# individual data frame
+ID_df = data.frame(ID = 1:4e3,
+                   Trait = NA,
+                   Location = NA,
+                   Species = sample(c("Sp1", "Sp2"), size = 4e3, replace = TRUE))
+
+# dummy values for traits
+set.seed(42)
+ID_df$Trait[ID_df$Species == "Sp1"] <- rnorm(n = length(ID_df$Trait[ID_df$Species == "Sp1"]), 
+                                             mean = 3.5, sd = 1)
+ID_df$Trait[ID_df$Species == "Sp2"] <- rnorm(n = length(ID_df$Trait[ID_df$Species == "Sp2"]), 
+                                             mean = 6.5, sd = 1)
+# dummy locations
+set.seed(42)
+ID_df$Location <- runif(n = nrow(ID_df), min = 0, max = 10)
+# carrying capacity for each species
+k_vec <- c(400, 400)
+names(k_vec) <- c("Sp1", "Sp2")
+# running simulation
+SIM_Gillespie <- SIM.Comp(d0 = 0.2, b0 = 0.8,
+                     t_max = 200, # now defining until what biological time to run
+                     t_inter = 0.5, # at what time intervals to sample
+                     k_vec = k_vec, 
+                     sd = 3, # higher habitat suitability
+                     ID_df = ID_df,
+                     Env_range = c(0, 10), n_Grid = 100,
+                     migration = 0.1 # shorter migration distances
+                    )
+```
+
+```{r, message=FALSE, fig.keep="all", results="hide", echo = FALSE}
+if(file.exists("Sim_Gillespie.RData")){
+  load("Sim_Gillespie.RData")
+}else{
+# individual data frame
+ID_df = data.frame(ID = 1:4e3,
+                   Trait = NA,
+                   Location = NA,
+                   Species = sample(c("Sp1", "Sp2"), size = 4e3, replace = TRUE))
+
+# dummy values for traits
+set.seed(42)
+ID_df$Trait[ID_df$Species == "Sp1"] <- rnorm(n = length(ID_df$Trait[ID_df$Species == "Sp1"]), 
+                                             mean = 3.5, sd = 1)
+ID_df$Trait[ID_df$Species == "Sp2"] <- rnorm(n = length(ID_df$Trait[ID_df$Species == "Sp2"]), 
+                                             mean = 6.5, sd = 1)
+# dummy locations
+set.seed(42)
+ID_df$Location <- runif(n = nrow(ID_df), min = 0, max = 10)
+# carrying capacity for each species
+k_vec <- c(300, 300)
+names(k_vec) <- c("Sp1", "Sp2")
+# running simulation
+SIM_Gillespie <- SIM.Comp(d0 = 0.2, b0 = 0.8,
+                     t_max = 100, # now defining until what biological time to run
+                     t_inter = 0.5, # at what time intervals to sample
+                     k_vec = k_vec, 
+                     sd = 3, # higher habitat suitability
+                     ID_df = ID_df,
+                     Env_range = c(0, 10), n_Grid = 100,
+                     migration = 0.1 # shorter migration distances
+                    )
+save(SIM_Gillespie, file = "Sim_Gillespie.RData")
+}
+```
+
+Ok... this ran for a long time. That makes sense though - we simulated many more iterations (i.e. longer simulation time) than before.
+
+Now on to extract the relevant data (this is just a beefier version than what I did in the previous simulation development section):
+```{r}
+## extracting the data
+GridPop_ls <- lapply(names(SIM_Gillespie$GriddedPopulations), FUN = function(x){
+  ## difference per cell in percent
+  if(ncol(SIM_Gillespie$GriddedPopulations[[x]]) == 2){
+   DiffPerc <- (SIM_Gillespie$GriddedPopulations[[x]][,1]-
+                  SIM_Gillespie$GriddedPopulations[[x]][,2])/
+      (SIM_Gillespie$GriddedPopulations[[x]][,1]+
+         SIM_Gillespie$GriddedPopulations[[x]][,2])
+  }
+  if(ncol(SIM_Gillespie$GriddedPopulations[[x]]) == 1){
+    if(colnames(SIM_Gillespie$GriddedPopulations[[x]]) == "Sp2"){
+      DiffPerc <- rep(-1, nrow(SIM_Gillespie$GriddedPopulations[[x]]))
+    }
+    if(colnames(SIM_Gillespie$GriddedPopulations[[x]]) == "Sp1"){
+      DiffPerc <- rep(1, nrow(SIM_Gillespie$GriddedPopulations[[x]]))
+    }
+  }
+  names <- as.numeric(rownames(SIM_Gillespie$GriddedPopulations[[x]])) 
+  names(DiffPerc) <- names
+  
+  Report_df <- data.frame(
+    GridCell = 1:100,
+    DiffPerc = NA,
+    t = x)
+  Report_df$DiffPerc[match(names(DiffPerc), Report_df$GridCell)] <- DiffPerc
+
+  ## absolute population size for entire environment
+  Abs_df <- data.frame(Sp1 = 0,
+             Sp2 = 0,
+             DiffPerc = 0,
+             N = 0,
+             t = x)
+  Pops <- colSums(SIM_Gillespie$GriddedPopulations[[x]])
+  Abs_df[,match(names(Pops), colnames(Abs_df))] <- Pops
+  
+  if(sum(!is.na(Abs_df[,1:2])) == 2){
+   DiffPerc <- (Abs_df[1]- Abs_df[2])/(Abs_df[1] + Abs_df[2])
+  }else{
+    if(!is.na(Abs_df[,1])){
+      DiffPerc <- 1
+    }
+    if(!is.na(Abs_df[,2])){
+      DiffPerc <- -1
+    }
+  }
+  Abs_df$DiffPerc <- as.numeric(DiffPerc)
+  Abs_df$N <- sum(Abs_df[,1:2], na.rm = TRUE)
+
+  ## returning data
+  list(Diff = Report_df,
+       Abs = Abs_df)
+  }
+  )
+## creating final data frame for plotting
+GridPop_df <- do.call(rbind, lapply(GridPop_ls, "[[", 1))
+GridPop_df$t <- as.numeric(GridPop_df$t)
+GridPop_df$GridCell <- as.numeric(GridPop_df$GridCell)
+AbsPop_df <- do.call(rbind, lapply(GridPop_ls, "[[", 2))
+AbsPop_df <- data.frame(sapply(AbsPop_df, as.numeric))
+```
+
+Finally, I plot the total population size through time (coloured by percentages of the population size of each species), the relative populations of our species (relative to each other) in each grid cell through time, and the location and trait expression of our final individuals:
+
+```{r, echo = FALSE, fig.height = 9, fig.width=12}
+PopTimePlot <- ggplot(AbsPop_df[AbsPop_df$t>1,],
+       aes(x = t, y = N, col = DiffPerc)) + 
+  geom_line(size = 2) +  
+  scale_color_gradient2(name="Sp1 vs. Sp2 %") + 
+  theme_bw() + labs(title = "Populations through time")
+
+GridPlot <- ggplot(round(GridPop_df, 2),
+       aes(x = t, y = GridCell, fill = DiffPerc)) +
+  geom_tile(width = 1.6) +
+  scale_fill_gradient2(name="Sp1 vs. Sp2 %") + 
+  theme_classic() + labs(title = "Populations in grid cells")
+
+TraitPlot <- ggplot(SIM_Gillespie$Individuals,
+       aes(y = Location, x = Trait, pch = Species, col = Species)) +
+  geom_point(size = 1) + 
+  scale_color_manual(values = c("darkblue", "darkred")) + 
+  ylim(0,10) + 
+  theme_bw() + labs(title = "Final individuals")
+
+## plotting both together
+plot_grid(PopTimePlot,
+          plot_grid(GridPlot, TraitPlot,
+                    ncol = 2,
+                    rel_widths = c(0.7, 0.3)),
+          ncol = 1)
+```
+
+\clearpage
+
+# Final Simulation Framework
+
+## Rationale 
+
+### Input
+
+### Output
+
+## Parameters / Function Arguments
