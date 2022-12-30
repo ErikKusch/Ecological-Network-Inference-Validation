@@ -37,3 +37,12 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+/Manuscripts
+/Data
+/Exports
+/For_loop
+/Concept
+/Models
+/X - DISCARDED
+*.txt
