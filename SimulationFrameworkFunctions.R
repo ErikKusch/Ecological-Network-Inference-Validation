@@ -126,52 +126,32 @@ FUN.RandK <- function(n_spec = 20, k_range = c(200,200), seed = 42){
 #' @param verbose Logical. Whether to print simulation time and sampling interval.
 #' @return A list containing data frame object with the same columns as ID_df at each sampling interval defined via n_inter until t_max is reached.
 SIM.Comp <- function(d0 = 0.4,
-                                     b0 = 0.6,
-                                     env.xy = function(x = NULL, y = NULL){x},
-                                     t_max = 10,
-                                     t_inter = 0.1,
-                                     sd = 2.5,
-                                     migration = 0.2,
-                                     Effect_Dis = 0.5,
-                                     Network_igraph,
-                                     k_vec, 
-                                     ID_df,
-                                     Env_range,
-                                     seed = 42,
-                                     verbose = TRUE # whether to print progress in time as current time
+                     b0 = 0.6,
+                     env.xy = function(x = NULL, y = NULL){x},
+                     t_max = 10,
+                     t_inter = 0.1,
+                     sd = 2.5,
+                     migration = 0.2,
+                     Effect_Dis = 0.5,
+                     Network_igraph,
+                     k_vec, 
+                     ID_df,
+                     Env_range,
+                     seed = 42,
+                     verbose = TRUE # whether to print progress in time as current time
 ){
   call_info <- match.call()
   set.seed(seed)
   
   ## Network as adjacency matrix
-  Effect_Mat <- as.matrix(igraph::as_adjacency_matrix(Network_igraph, attr = "weight")) # columns affect rows
+  Effect_Mat <- igraph::as_adjacency_matrix(Network_igraph, attr = "weight") # columns affect rows
   rownames(Effect_Mat) <- colnames(Effect_Mat) <- names(k_vec)
   
-  ## dynamic death rate function
-  d0P <- function(N, b0, d0, k){N * (b0 - d0)/k}
-  d0E <- function(Tr, Env, sd){exp((abs(Tr-Env)/sd)^2)}
-  d0Omega <- function(Effect_Mat, Effect_Dis, ID_df, i){
-    Abundances_i <- rep(0, ncol(Effect_Mat))
-    names(Abundances_i) <- colnames(Effect_Mat)
-    Abundances_obs <- table(ID_df[-i,][ID_df[-i, "X"] < ID_df[i,"X"]+Effect_Dis &
-                                         ID_df[-i, "X"] > ID_df[i,"X"]-Effect_Dis &
-                                         ID_df[-i, "Y"] < ID_df[i,"Y"]+Effect_Dis &
-                                         ID_df[-i, "Y"] > ID_df[i,"Y"]-Effect_Dis,
-                                       "Species"])
-    Abundances_i[match(names(Abundances_obs), names(Abundances_i))] <- Abundances_obs
-    ### Extract all effects that the focal species is subject to in the interaction matrix
-    Effects_i <- Effect_Mat[which(rownames(Effect_Mat) == ID_df[i, "Species"]),]
-    ### Weigh effects by abundances
-    WeightedEffects_i <- Abundances_i * Effects_i
-    ### Calculate final effect
-    if(sum(Abundances_i) != 0){
-      FinalEffect_i <- sum(WeightedEffects_i)/sum(Abundances_i)
-    }else{
-      FinalEffect_i <- 0
-    }
-    return(FinalEffect_i)
-  }
-  dt <- function(d0, d0P, d0E, d0Omega){d0 + d0P*d0E - d0Omega}
+  ## dynamic death rate initialisation
+  ID_df <- Sim.d0Update(ID_df = ID_df, which = "Initial", 
+                        env.xy = env.xy, d0 = d0, b0 = b0, sd = sd, 
+                        Effect_Mat = Effect_Mat, k_vec = k_vec, 
+                        Effect_Dis = Effect_Dis, seed = seed)
   
   ## list object to store individuals at each time step
   ID_ls <- list(ID_df)
@@ -184,27 +164,6 @@ SIM.Comp <- function(d0 = 0.4,
   ## simulation loop over time steps
   while(t < t_max){
     if(verbose){print(t)}
-    
-    ## dynamic death rate components
-    ### population dynamics
-    N_vec <- table(ID_df$Species)
-    
-    d0P_vec <- d0P(N = N_vec, b0 = b0, d0 = d0, 
-                   k = k_vec[match(names(k_vec), names(N_vec))])
-    ID_df$d0P <- as.numeric(d0P_vec[match(ID_df$Species, names(d0P_vec))])
-    ### environment
-    ID_df$d0E <- d0E(Tr = ID_df$Trait, Env = env.xy(x = ID_df$X, y = ID_df$Y), sd = sd)
-    ### Interactions
-    ID_df$d0Omega <- sapply(1:nrow(ID_df), FUN = function(i){
-      d0Omega(Effect_Mat = Effect_Mat, Effect_Dis = Effect_Dis,
-              ID_df = ID_df, i = i)
-    })
-    ID_df$dt <- dt(d0 = d0, 
-                   d0P = ID_df$d0P, 
-                   d0E = ID_df$d0E, 
-                   d0Omega = ID_df$d0Omega)
-    ID_df$dt[ID_df$dt < 0] <- 0 # make sure probabilities are never < 0
-    
     ## vectors for storing birth and death probabilities for each individual
     birth_prob <- rep(b0, nrow(ID_df))
     death_prob <- ID_df$dt
@@ -213,11 +172,16 @@ SIM.Comp <- function(d0 = 0.4,
     ## event identification
     EventSample_vec <- paste(rep(c("Birth", "Death"), each = nrow(ID_df)), 
                              names(birth_prob), sep="_")
-    event <- sample(
-      EventSample_vec,
-      size = 1,
-      prob = c(birth_prob, death_prob)
-    )
+    ProbSample_vec <- c(birth_prob, death_prob)
+    if(any(ProbSample_vec == Inf)){
+      event <- EventSample_vec[which(ProbSample_vec == Inf)[1]]
+    }else{
+      event <- sample(
+        EventSample_vec,
+        size = 1,
+        prob = ProbSample_vec
+      )
+    }
     ## event evaluation
     event_eval <- strsplit(event, split = "_")
     event_ID <- event_eval[[1]][2]
@@ -237,10 +201,17 @@ SIM.Comp <- function(d0 = 0.4,
       append_df$X <- newloc.x
       append_df$Y <- newloc.y
       ID_df <- rbind(ID_df, append_df)
+      affected_row <- ID_df[nrow(ID_df),]
     }
     if(event_EV == "Death"){
+      affected_row <- ID_df[ID_df$ID == as.numeric(event_ID),]
       ID_df <- ID_df[ID_df$ID != event_ID, ]
     }
+    ## dynamic death rate recalculation
+    ID_df <- Sim.d0Update(ID_df = ID_df, which = affected_row, event = event_EV,
+                          env.xy = env.xy, d0 = d0, b0 = b0, sd = sd, 
+                          Effect_Mat = Effect_Mat, k_vec = k_vec, 
+                          Effect_Dis = Effect_Dis, seed = round(t, 3)*1e4+seed)
     ## Gillespie time
     ### identify by how much time advances
     tadvance <- rexp(1, rate = sum(c(birth_prob, death_prob))) 
@@ -263,6 +234,88 @@ SIM.Comp <- function(d0 = 0.4,
   unlink(paste0("TEMP_SIM_", seed, ".RData"))
   return(ID_ls)
 }
+
+#' This is a helper function for updating of dynamic death rates in the simulation run
+Sim.d0Update <- function(ID_df = ID_df, which = "Initial", event = NULL,
+                         env.xy = env.xy, d0 = d0, b0 = b0, sd = sd, 
+                         Effect_Mat = Effect_Mat, k_vec = k_vec, 
+                         Effect_Dis = Effect_Dis, seed = seed){
+  # set.seed(seed)
+  
+  ## dynamic death rate functions
+  d0P <- function(N, b0, d0, k){N * (b0 - d0)/k}
+  d0E <- function(Tr, Env, sd){exp((abs(Tr-Env)/sd)^2)}
+  d0Omega <- function(Effect_Mat, Effect_Dis, ID_df, i){
+    Abundances_i <- rep(0, ncol(Effect_Mat))
+    names(Abundances_i) <- colnames(Effect_Mat)
+    Abundances_obs <- table(ID_df[-i,][
+      abs(ID_df[i,"X"]-ID_df[-i, "X"]) <= Effect_Dis &
+        abs(ID_df[i,"Y"]-ID_df[-i, "Y"]) <= Effect_Dis,
+      "Species"])
+    Abundances_i[match(names(Abundances_obs), names(Abundances_i))] <- Abundances_obs
+    ### Extract all effects that the focal species is subject to in the interaction matrix
+    Effects_i <- Effect_Mat[which(rownames(Effect_Mat) == ID_df[i, "Species"]),]
+    ### Weigh effects by abundances
+    WeightedEffects_i <- Abundances_i * Effects_i
+    ### Calculate final effect
+    if(sum(Abundances_i) != 0){
+      FinalEffect_i <- sum(WeightedEffects_i)/sum(Abundances_i)
+    }else{
+      FinalEffect_i <- 0
+    }
+    return(FinalEffect_i)
+  }
+  dt <- function(d0, d0P, d0E, d0Omega){d0 + d0P*d0E - d0Omega}
+  ## queried d0 update
+  if(which[1] == "Initial"){
+    ## dynamic death rate components
+    ### population dynamics
+    N_vec <- table(ID_df$Species)
+    d0P_vec <- d0P(N = N_vec, b0 = b0, d0 = d0, 
+                   k = k_vec[match(names(k_vec), names(N_vec))])
+    ID_df$d0P <- as.numeric(d0P_vec[match(ID_df$Species, names(d0P_vec))])
+    ### environment
+    ID_df$d0E <- d0E(Tr = ID_df$Trait, Env = env.xy(x = ID_df$X, y = ID_df$Y), 
+                     sd = sd)
+    ### Interactions
+    ID_df$d0Omega <- sapply(1:nrow(ID_df), FUN = function(i){
+      d0Omega(Effect_Mat = Effect_Mat, Effect_Dis = Effect_Dis,
+              ID_df = ID_df, i = i)
+    })
+  }else{
+    ## updating population dynamics
+    if(sum(ID_df$Species == which$Species) > 0){
+      d0P <- d0P(N = sum(ID_df$Species == which$Species), 
+                 b0 = b0, d0 = d0, 
+                 k = k_vec[names(k_vec) == which$Species])
+      ID_df[ID_df$Species == which$Species, "d0P"] <- d0P
+    }
+    ## environment
+    if(event == "Birth"){
+      ID_df$d0E[ID_df$ID == which$ID] <- d0E(Tr = which$Trait, 
+                                             Env = env.xy(x = which$X, 
+                                                          y = which$Y), 
+                                             sd = sd)
+    }
+    ## interactions
+    ### individuals affected by addition or removal of other indiivudal
+    newinterac <- ID_df[abs(ID_df$X-which$X) <= Effect_Dis &
+                          abs(ID_df$Y-which$Y) <= Effect_Dis, "ID"]
+    if(length(newinterac)>0){
+      ID_df$d0Omega[ID_df$ID %in% newinterac] <- sapply(newinterac, FUN = function(i){
+        d0Omega(Effect_Mat = Effect_Mat, Effect_Dis = Effect_Dis,
+                ID_df = ID_df, i = i)
+      })
+    }
+  }
+  ID_df$dt <- dt(d0 = d0, 
+                 d0P = ID_df$d0P, 
+                 d0E = ID_df$d0E, 
+                 d0Omega = ID_df$d0Omega)
+  ID_df$dt[ID_df$dt < 0] <- 0 # make sure probabilities are never < 0
+  return(ID_df)
+}
+
 
 # SIMULATION FRAMEWORK =========================================================
 #' @param seed Numeric. Seed for random processes.

@@ -60,10 +60,10 @@ Data_fs <- list.files(Dir.Data)
 
 # INFERENCE FUNCTIONS ======================================================
 FUN.Inference <- function(Simulation_Output = NULL, 
-              Dir.Exports = Dir.Exports,
-              Dir.Models = Dir.Models,
-              Treatment_Iter = Treatment_Iter,
-              Cores = 1){
+                          Dir.Exports = NULL,
+                          Dir.Models = NULL,
+                          Treatment_Iter = NULL,
+                          Cores = 1){
   Network_Weighted <- Simulation_Output$Network
   ID_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
   
@@ -164,12 +164,17 @@ FUN.Inference <- function(Simulation_Output = NULL,
                    studyDesign = studyDesign,
                    ranLevels = {list("GridID" = rL.site)}
   )
-  models_ls <- list(InformedMod, NaiveMod)
-  names(models_ls) <- c("Informed","Naive")
+  models_ls <- list(InformedMod
+                    # ,
+                    # NaiveMod
+                    )
+  names(models_ls) <- c("Informed"
+                        # ,"Naive"
+                        )
   
   ### Modelling and Dissimilarity Computation ----
   # message("Modelling")
-  for(Model_Iter in 1:2){
+  for(Model_Iter in 1){ # :2
     Start_t <- Sys.time()
     print(Model_Iter)
     hmsc_model <- models_ls[[Model_Iter]]
@@ -316,12 +321,12 @@ FUN.Inference <- function(Simulation_Output = NULL,
 message("############ INFERENCE & NETWORK DISSIMILARITY COMPUTATION")
 
 print("Registering Cluster")
-nCores <- ifelse(parallel::detectCores()>8, 8, parallel::detectCores())
+nCores <- ifelse(parallel::detectCores()>50, 50, parallel::detectCores())
 cl <- parallel::makeCluster(nCores) # for parallel pbapply functions
 parallel::clusterExport(cl,
                         varlist = c("Data_fs", "nSamples", "thin", "nWarmup", "nChains",
                                     "%nin%", "Dir.Data", "Dir.Models", "Dir.Exports",
-                                    "install.load.package", "package_vec", "n_Grid"),
+                                    "install.load.package", "package_vec", "n_Grid", "FUN.Inference"),
                         envir = environment()
 )
 clusterpacks <- clusterCall(cl, function() sapply(package_vec, install.load.package))
@@ -336,8 +341,16 @@ Inference_ls <- pblapply(1:length(Data_fs),
                              load(file.path(Dir.Exports, Treatment_Iter))
                            }else{
                              load(file.path(Dir.Data, Treatment_Iter)) # loads list object "SimulationOutput"
-                             models_ls <- FUN.Inference(Simulation_Output)
+                             if(nrow(Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]) == 0){
+                               models_ls <- NA
+                             }else{
+                               models_ls <- FUN.Inference(Simulation_Output =  Simulation_Output,
+                                                          Dir.Exports = Dir.Exports,
+                                                          Dir.Models = Dir.Models,
+                                                          Treatment_Iter = Treatment_Iter) 
+                             }
                            }
                            models_ls
                          })
 names(Inference_ls) <- Data_fs
+# stop("Remove NA entries from Inference_ls - these are instances were the simulation resulted in extinction of all species")
