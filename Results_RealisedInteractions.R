@@ -8,7 +8,7 @@
 #' AUTHOR: [Erik Kusch]
 #' ####################################################################### #
 
-# PREAMBLE =================================================================
+# PREAMBLE =====================================================================
 source("Inference.R")
 OneSD <- unlist(lapply(strsplit(names(Inference_ls), split = "_"), "[[", 2)) == 1
 Inference_ls <- Inference_ls[OneSD]
@@ -19,7 +19,20 @@ Dir.Concept <- file.path(Dir.Base, "Concept")
 Dirs <- c(Dir.Concept)
 CreateDir <- sapply(Dirs, function(x) if(!dir.exists(x)) dir.create(x))
 
-# BETA DIVERSITY ===========================================================
+# INFERRED VS. INFERRED ========================================================
+InfComp <- pblapply(Inference_ls, FUN = function(Sim){
+  as.data.frame(betalink(Sim$Informed$Graphs$HMSC, Sim$COOCCUR$Graphs$COOCCUR))
+})
+InfComp_df <- as.data.frame(do.call(rbind, InfComp))
+
+ggplot(data = InfComp_df, aes(x = OS)) + 
+  stat_halfeye() + 
+  theme_bw() + 
+  labs(x = "Network Dissimilarity", y = "")
+ggsave(filename = file.path(Dir.Exports, "Fig_InfVInf.png"), 
+       width = 16, height = 9, units = "cm")
+
+# BETA DIVERSITY ===============================================================
 message("Comparison of Dissimilarities")
 Dissimilarities_df <- do.call(rbind, 
                            pblapply(Inference_ls, FUN = function(x){
@@ -40,9 +53,9 @@ OS_gg
 ggsave(OS_gg, filename = file.path(Dir.Exports, "Fig_OS.png"), 
        width = 16, height = 8, units = "cm")
 
-# DETECTION REGRESSION =====================================================
+# DETECTION REGRESSION =========================================================
 message("Detection of Positive, Negative, and Absent Associations")
-Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
+Detection_ls <- lapply(names(Inference_ls), FUN = function(SimName){
   # SimName <- names(Inference_ls)[12] 
   # print(SimName)
   x <- Inference_ls[[SimName]]
@@ -168,7 +181,7 @@ Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
 })
 names(Detection_ls) <- names(Inference_ls)
 
-DetectionModels_df <- pblapply(X = names(Detection_ls[[1]]), 
+DetectionModels_df <- lapply(X = names(Detection_ls[[1]]), 
                                FUN = function(Realisation){
                                  Detect_df <- lapply(Detection_ls, "[[", Realisation)
                                  Detect_df <- do.call(rbind, 
@@ -253,9 +266,20 @@ DetectionModels_df <- pblapply(X = names(Detection_ls[[1]]),
                                    Bayes_ls <- Plot_ls[[k]]
                                    
                                    HMSC_df <- posterior_samples(Bayes_ls[["HMSC"]])
+                                   HMSC_df[,-1] <- apply(HMSC_df[,-1], MARGIN = 2, FUN = function(x){
+                                     inv_logit_scaled(HMSC_df$b_Intercept + x) - 
+                                       inv_logit_scaled(HMSC_df$b_Intercept)
+                                   })
+                                   HMSC_df$b_Intercept <- inv_logit_scaled(HMSC_df$b_Intercept)
                                    HMSC_df <- reshape2::melt(HMSC_df[,1:4])
                                    HMSC_df$Method <- "HMSC"
+                                   
                                    COOCCUR_df <- posterior_samples(Bayes_ls[["COOCCUR"]])
+                                   COOCCUR_df[,-1] <- apply(COOCCUR_df[,-1], MARGIN = 2, FUN = function(x){
+                                     inv_logit_scaled(COOCCUR_df$b_Intercept + x) - 
+                                       inv_logit_scaled(COOCCUR_df$b_Intercept)
+                                   })
+                                   COOCCUR_df$b_Intercept <- inv_logit_scaled(COOCCUR_df$b_Intercept)
                                    COOCCUR_df <- reshape2::melt(COOCCUR_df[,1:4])
                                    COOCCUR_df$Method <- "COOCCUR"
                                    
@@ -301,16 +325,24 @@ DetectionModels_df <- pblapply(X = names(Detection_ls[[1]]),
                                    
                                    Plot_ls[[k]] <- cowplot::plot_grid(Coeff_gg, Prob_gg)
                                    
-                                   ggsave(Plot_ls[[k]], 
-                                          filename = file.path(Dir.Exports, paste0("Fig_Detection_", k, Realisation, ".png")), 
-                                          width = 30, height = 20, units = "cm")
+                                   # ggsave(Plot_ls[[k]], 
+                                   #        filename = file.path(Dir.Exports, paste0("Fig_Detection_", k, Realisation, ".png")), 
+                                   #        width = 30, height = 20, units = "cm")
                                    
                                    rm(prob_plot)
                                  }
                                  Plot_ls
 })
+names(DetectionModels_df) <- names(Detection_ls[[1]])
 
-# ERROR RATES ==============================================================
+WritePlot <- lapply(names(DetectionModels_df), FUN = function(Realisation){
+  ggsave(cowplot::plot_grid(plotlist = DetectionModels_df[[Realisation]], ncol = 1), 
+         filename = file.path(Dir.Exports, paste0("Fig_DetectionBayes_", Realisation, ".png")), 
+         width = 26, height = 38, units = "cm")
+  
+})
+
+# ERROR RATES ==================================================================
 message("Inference Error Rates")
 stop("split by realisation")
 ErrorRates_df <- do.call(rbind, 
