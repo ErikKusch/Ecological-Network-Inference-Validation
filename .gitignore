@@ -46,3 +46,6 @@ vignettes/*.pdf
 /Models
 /X - DISCARDED
 *.txt
+Logo/*
+Alias.png
+.DS_Store
