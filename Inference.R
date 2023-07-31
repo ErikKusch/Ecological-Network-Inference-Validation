@@ -56,7 +56,8 @@ n_Grid <- 10
 message(paste0("thin = ",as.character(thin),"; samples = ",as.character(nSamples)))
 
 # DATA =====================================================================
-Data_fs <- list.files(Dir.Data)
+Data_fs <- list.files(Dir.Data, pattern = ".RData")
+Data_fs <- Data_fs[unlist(lapply(strsplit(Data_fs, split = "_"), "[[", 2)) == 1]
 
 # INFERENCE FUNCTIONS ======================================================
 FUN.Inference <- function(Simulation_Output = NULL, 
@@ -64,8 +65,42 @@ FUN.Inference <- function(Simulation_Output = NULL,
                           Dir.Models = NULL,
                           Treatment_Iter = NULL,
                           Cores = 1){
-  Network_Weighted <- Simulation_Output$Network
+  ### DATA READOUT ####
+  ## Simulated individuals
   ID_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
+  
+  ## Networks
+  V(Simulation_Output$Network)$names <- paste0("Sp_", V(Simulation_Output$Network))
+  Network_Weighted <- Simulation_Output$Network
+  mode <- ifelse(is.directed(Network_Weighted), "directed", "undirected")
+  Network_Realised <- as.matrix(as_adjacency_matrix(Network_Weighted, attr = "weight"))
+  colnames(Network_Realised) <- rownames(Network_Realised) <- V(Network_Weighted)$names
+  Network_Realised <- Network_Realised[colnames(Network_Realised) %in% unique(ID_df$Species),
+                   colnames(Network_Realised) %in% unique(ID_df$Species)]
+  
+  ## Network of only survived species till end of simulation
+  Network_SurvNonReal <- graph_from_adjacency_matrix(Network_Realised, mode = mode, weighted = TRUE)
+  Network_Weighted <- Network_SurvNonReal
+  E(Network_SurvNonReal)$weight <- ifelse(E(Network_SurvNonReal)$weight > 0, 1, -1)
+  
+  ## Network of only survived species till end of simulation and within reach of each other to actually interact
+  # Figuring out trait differences between potentially interacting species
+  SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean)
+  SPTrait_df$SD <- aggregate(ID_df, Trait ~ Species, FUN = sd)$Trait
+  SPTrait_df <- SPTrait_df[match(colnames(Network_Realised), SPTrait_df$Species), ]
+  SPTrait_mat <- abs(outer(SPTrait_df$Trait, SPTrait_df$Trait, '-'))
+  colnames(SPTrait_mat) <- rownames(SPTrait_mat) <- colnames(Network_Realised)
+  SPTraitSD_mat <- abs(outer(SPTrait_df$SD, SPTrait_df$SD, '+'))
+  colnames(SPTraitSD_mat) <- rownames(SPTraitSD_mat) <- colnames(Network_Realised)
+  
+  # limitting to realised interactions
+  Network_Realised[(SPTrait_mat-SPTraitSD_mat) > 0.5] <- 0 # anything greater apart in enviro pref than the interaction window (0.5) cannot be realised
+  Network_SurvReal <- igraph::graph_from_adjacency_matrix(adjmatrix = Network_Realised,
+                                                      mode = mode,
+                                                      weighted = TRUE,
+                                                      diag = FALSE)
+  Network_WeightedReal <- Network_SurvReal
+  E(Network_SurvReal)$weight <- ifelse(E(Network_SurvReal)$weight > 0, 1, -1)
   
   ### DATA PREPRATION ####
   # Y: Site X Species matrix
@@ -174,7 +209,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   
   ### Modelling and Dissimilarity Computation ----
   # message("Modelling")
-  for(Model_Iter in 1){ # :2
+  for(Model_Iter in 1:length(models_ls)){
     Start_t <- Sys.time()
     print(Model_Iter)
     hmsc_model <- models_ls[[Model_Iter]]
@@ -192,9 +227,8 @@ FUN.Inference <- function(Simulation_Output = NULL,
                                nParallel = Cores
                                # nChains
       )
-      save(hmsc_model, file = ModelPath)
+      # save(hmsc_model, file = ModelPath)
     }
-    
     OmegaCor <- computeAssociations(hmsc_model)
     supportLevel <- 0.95
     me <- as.data.frame(OmegaCor[[1]]$mean)
@@ -231,7 +265,6 @@ FUN.Inference <- function(Simulation_Output = NULL,
       Interactions_HMSC$Inter_ProbPos >= 0.95 | 
         Interactions_HMSC$Inter_ProbNeg >= 0.95] <- TRUE
     
-    
     HMSC_ig <- graph_from_data_frame(Interactions_HMSC[Interactions_HMSC$Sig == TRUE,], 
                                      directed = FALSE)
     Spec_vec <- unique(c(Interactions_HMSC$Partner1, Interactions_HMSC$Partner2))
@@ -240,20 +273,25 @@ FUN.Inference <- function(Simulation_Output = NULL,
       E(HMSC_ig)$weight[E(HMSC_ig)$weight > 0] <- 1
       E(HMSC_ig)$weight[E(HMSC_ig)$weight < 0] <- -1
       origvert <- names(V(HMSC_ig))
+      # HMSC_ig <- set.vertex.attribute(HMSC_ig, "names", value = names(V(HMSC_ig)))
+      
       addvert <- Spec_vec[Spec_vec %nin% names(V(HMSC_ig))
       ]
-      HMSC_ig <- add_vertices(HMSC_ig, 
+      HMSC_ig <- add_vertices(HMSC_ig,
                               nv = length(addvert))
       HMSC_ig <- set.vertex.attribute(HMSC_ig, "name", value = c(origvert, addvert))
     }else{
       HMSC_ig <- make_empty_graph(n = length(Spec_vec))
-      HMSC_ig <- set.vertex.attribute(HMSC_ig, "name", value = Spec_vec)
+      HMSC_ig <- set.vertex.attribute(HMSC_ig, "names", value = Spec_vec)
     }
     
-    V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
-    E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
-    Graphs_ls <- list(HMSC = HMSC_ig, True = Simulation_Output$Network)
-    betadiv <- network_betadiversity(N = Graphs_ls)
+    # V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
+    # E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
+    
+    Graphs_ls <- list(HMSC = HMSC_ig, 
+                      SurvNonReal = Network_SurvNonReal,
+                      SurvReal = Network_SurvReal)
+    betadiv <- network_betadiversity(N = Graphs_ls)[-3,]
     
     ### Export ----
     End_t <- Sys.time()
@@ -280,7 +318,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   colnames(Interac_df)[1:2] <- c("Partner1", "Partner2")
   
   COOCCUR_ig <- graph_from_data_frame(Interac_df[Interac_df$Sig == TRUE,], 
-                                      directed = FALSE)
+                                      directed = mode)
   Spec_vec <- unique(c(Interac_df$Partner1, Interac_df$Partner2))
   if(length(E(COOCCUR_ig)) != 0){
     E(COOCCUR_ig)$weight <- E(COOCCUR_ig)$effects
@@ -297,22 +335,23 @@ FUN.Inference <- function(Simulation_Output = NULL,
     COOCCUR_ig <- set.vertex.attribute(COOCCUR_ig, "name", value = Spec_vec)
   }
   
-  V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
-  E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
-  Graphs_ls <- list(COOCCUR = COOCCUR_ig, True = Simulation_Output$Network)
-  betadiv <- network_betadiversity(N = Graphs_ls)
-  
-  
+  # V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
+  # E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
+  Graphs_ls <- list(COOCCUR = COOCCUR_ig, 
+                    SurvNonReal = Network_SurvNonReal,
+                    SurvReal = Network_SurvReal)
+  betadiv <- network_betadiversity(N = Graphs_ls)[-3, ]
   
   models_ls$COOCCUR <- list(COOCCUR_associations = Interac_df,
-                            Graphs = list(COOCCUR = COOCCUR_ig,
-                                          True = Simulation_Output$Network),
+                            Graphs = Graphs_ls,
                             Dissimilarity = betadiv
   )
   
   ## FINAL OUTPUT
-  models_ls$TrueNetwork <- Network_Weighted
+  # models_ls$TrueNetwork <- Network_Weighted
   models_ls$ID_df <- ID_df
+  models_ls$Weighted <- list(NonReal = Network_Weighted,
+                             Real = Network_WeightedReal)
   save(models_ls, file = file.path(Dir.Exports, Treatment_Iter)) 
   return(models_ls)
 }
@@ -321,7 +360,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
 message("############ INFERENCE & NETWORK DISSIMILARITY COMPUTATION")
 
 print("Registering Cluster")
-nCores <- ifelse(parallel::detectCores()>50, 50, parallel::detectCores())
+nCores <- ifelse(parallel::detectCores()>25, 25, parallel::detectCores())
 cl <- parallel::makeCluster(nCores) # for parallel pbapply functions
 parallel::clusterExport(cl,
                         varlist = c("Data_fs", "nSamples", "thin", "nWarmup", "nChains",
@@ -350,7 +389,10 @@ Inference_ls <- pblapply(1:length(Data_fs),
                                                           Treatment_Iter = Treatment_Iter) 
                              }
                            }
+                           
+                           # reporting back to top
                            models_ls
+                           
                          })
 names(Inference_ls) <- Data_fs
 # stop("Remove NA entries from Inference_ls - these are instances were the simulation resulted in extinction of all species")
