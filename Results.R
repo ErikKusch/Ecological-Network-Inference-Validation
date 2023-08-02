@@ -480,7 +480,7 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
     ## Initial Individual Creation
     n_individuals = 4e2,
     n_mode = "each", # or "total"
-    Env_range = c(0, 5),
+    Env_range = c(0, 10),
     Trait_sd = 1,
     ## Carrying Capacity Creation
     k_range = c(300,300),
@@ -680,60 +680,6 @@ models_ls <- FUN.Inference(Simulation_Output,
                            Treatment_Iter = "Concept",
                            Cores = 4)
 
-print("HMSC network matrix")
-if(length(E(models_ls$Informed$Graphs$HMSC)) != 0){
-  net_mat <- as_adjacency_matrix(models_ls$Informed$Graphs$HMSC, attr = "weight",
-                                 type = "upper", sparse = FALSE)
-}else{
-  net_mat <- matrix(rep(0, length = length(V(models_ls$Informed$Graphs$HMSC))^2), ncol = length(V(models_ls$Informed$Graphs$HMSC)))
-  colnames(net_mat) <- rownames(net_mat) <- sort(V(models_ls$Informed$Graphs$HMSC)$name)
-}
-
-net_mat[lower.tri(net_mat)] <- NA
-diag(net_mat) <- NA
-colnames(net_mat) <- rownames(net_mat) <- V(models_ls$Informed$Graphs$HMSC)
-edg_df <- melt(net_mat)
-colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
-edg_df$Method <- "HMSC"
-edg_df2 <- edg_df
-
-print("COOCCUR network matrix")
-net_mat <- as_adjacency_matrix(models_ls$COOCCUR$Graphs$COOCCUR, attr = "weight",
-                               type = "upper", sparse = FALSE)
-net_mat[lower.tri(net_mat)] <- NA
-diag(net_mat) <- NA
-colnames(net_mat) <- rownames(net_mat) <- V(models_ls$COOCCUR$Graphs$COOCCUR)
-edg_df <- melt(net_mat)
-colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
-edg_df$Method <- "COOCCUR"
-edg_df2 <- rbind(edg_df2, edg_df)
-# edg_df2$Strength <- as.numeric(edg_df2$Strength)
-edg_df2$Correct <- NA
-edg_df2$Correct[which((edg_df2$Strength == 1) + (sign(edg_df1$Strength) == 1) == 2)] <- 1
-edg_df2$Correct[which((edg_df2$Strength == -1) + (sign(edg_df1$Strength) == -1) == 2)] <- 1
-edg_df2$Correct[which((edg_df2$Strength == 0) + (sign(edg_df1$Strength) == 0) == 2)] <- 1
-edg_df2$Correct[which(is.na(edg_df2$Correct) & !is.na(edg_df2$Strength))] <- 0
-edg_df2$Correct <- factor(edg_df2$Correct)
-
-InfMat_gg <- ggplot(edg_df2, 
-                    aes(x = `Partner 1`, y = `Partner 2`, 
-                        fill = Strength, shape = Correct)) +
-  geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
-  coord_fixed() +
-  geom_point(size = 3) + 
-  scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "",
-                     guide = "none") +  
-  guides(fill = guide_colourbar(barwidth = 2,
-                                barheight = 15,
-                                title = "Associatiuon")) + 
-  theme_bw() + 
-  facet_wrap(~Method) + 
-  theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
-  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
-
-ggsave(InfMat_gg, filename = file.path(Dir.Concept, "Fig_Matrix_Inferred.png"), 
-       width = 40, height = 22, units = "cm")
-
 ## Network Realisation ---------------------------------------------------------
 ### True NonRealised ----
 Realisation <- "NonReal"
@@ -768,7 +714,6 @@ diag(TraitDiff_mat) <- NA
 TraitDiff_mat[lower.tri(TraitDiff_mat)] <- NA
 
 d2.df <- reshape2::melt(TraitDiff_mat, c("x", "y"), value.name = "z")
-head(d2.df)
 d2.df$Realised <- FALSE
 d2.df$Realised[which(d2.df$z < Simulation_Output$Call$sd+Simulation_Output$Call$Effect_Dis)] <- TRUE
 
@@ -808,4 +753,59 @@ TrueMatReal_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = S
 ggsave(cowplot::plot_grid(TrueMat_gg, TraitDiff_gg, TrueMatReal_gg, ncol = 3, labels = "AUTO"),
        filename = file.path(Dir.Concept, "Fig_Realisation.png"), 
        width = 42, height = 11, units = "cm"
-       )
+)
+
+## Inference Visualisation -----------------------------------------------------
+print("HMSC network matrix")
+if(length(E(models_ls$Informed$Graphs$HMSC)) != 0){
+  net_mat <- as_adjacency_matrix(models_ls$Informed$Graphs$HMSC, attr = "weight",
+                                 type = "upper", sparse = FALSE)
+}else{
+  net_mat <- matrix(rep(0, length = length(V(models_ls$Informed$Graphs$HMSC))^2), ncol = length(V(models_ls$Informed$Graphs$HMSC)))
+  colnames(net_mat) <- rownames(net_mat) <- sort(V(models_ls$Informed$Graphs$HMSC)$name)
+}
+
+net_mat[lower.tri(net_mat)] <- NA
+diag(net_mat) <- NA
+colnames(net_mat) <- rownames(net_mat) <- V(models_ls$Informed$Graphs$HMSC)
+edg_df <- melt(net_mat)
+colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
+edg_df$Method <- "HMSC"
+edg_df2 <- edg_df
+
+print("COOCCUR network matrix")
+net_mat <- as_adjacency_matrix(as.undirected(models_ls$COOCCUR$Graphs$COOCCUR), attr = "weight",
+                               type = "upper", sparse = FALSE)
+net_mat[lower.tri(net_mat)] <- NA
+diag(net_mat) <- NA
+colnames(net_mat) <- rownames(net_mat) <- V(models_ls$COOCCUR$Graphs$COOCCUR)
+edg_df <- melt(net_mat)
+colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
+edg_df$Method <- "COOCCUR"
+edg_df2 <- rbind(edg_df2, edg_df)
+# edg_df2$Strength <- as.numeric(edg_df2$Strength)
+edg_df2$Correct <- NA
+edg_df2$Correct[which((edg_df2$Strength == 1) + (sign(edg_df1$Strength) == 1) == 2)] <- 1
+edg_df2$Correct[which((edg_df2$Strength == -1) + (sign(edg_df1$Strength) == -1) == 2)] <- 1
+edg_df2$Correct[which((edg_df2$Strength == 0) + (sign(edg_df1$Strength) == 0) == 2)] <- 1
+edg_df2$Correct[which(is.na(edg_df2$Correct) & !is.na(edg_df2$Strength))] <- 0
+edg_df2$Correct <- factor(edg_df2$Correct)
+
+InfMat_gg <- ggplot(edg_df2, 
+                    aes(x = `Partner 1`, y = `Partner 2`, 
+                        fill = Strength, shape = Correct)) +
+  geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
+  coord_fixed() +
+  geom_point(size = 3) + 
+  scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "",
+                     guide = "none") +  
+  guides(fill = guide_colourbar(barwidth = 2,
+                                barheight = 15,
+                                title = "Associatiuon")) + 
+  theme_bw() + 
+  facet_wrap(~Method) + 
+  theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
+  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
+
+ggsave(InfMat_gg, filename = file.path(Dir.Concept, "Fig_Matrix_Inferred.png"), 
+       width = 40, height = 22, units = "cm")
