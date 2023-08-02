@@ -10,8 +10,8 @@
 
 # PREAMBLE =====================================================================
 source("Inference.R")
-OneSD <- unlist(lapply(strsplit(names(Inference_ls), split = "_"), "[[", 2)) == 1
-Inference_ls <- Inference_ls[OneSD]
+# OneSD <- unlist(lapply(strsplit(names(Inference_ls), split = "_"), "[[", 2)) == 1
+# Inference_ls <- Inference_ls[OneSD]
 package_vec <- c(package_vec, "brms", "rethinking", "reshape2", "cowplot", "scales")
 sapply(package_vec, install.load.package)
 Dir.Base <- getwd() # read out the project directory
@@ -475,8 +475,8 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
     ## Network Creation
     n_spec = 5,
     NetworkType = "Association", # or "Association"
-    Sparcity = 0.5,
-    MaxStrength = 1,
+    Sparcity = 0.1,
+    MaxStrength = 10,
     ## Initial Individual Creation
     n_individuals = 4e2,
     n_mode = "each", # or "total"
@@ -546,7 +546,7 @@ Input_gg <- plot_grid(plot_grid(Initial_gg + theme(legend.position = "none"),
                                 Final_gg + theme(legend.position = "none"), 
                                 nrow = 1),
                       leg, rel_heights = c(1,0.1), ncol = 1)
-ggsave(Input_gg, filename = file.path(Dir.Exports, "Fig_SpatialInputs.png"), 
+ggsave(Input_gg, filename = file.path(Dir.Concept, "Fig_SpatialInputs.png"), 
        width = 30, height = 16, units = "cm")
 
 ### species-site matrices ----
@@ -618,7 +618,7 @@ InputMatrices_gg <- plot_grid(plot_ls[[1]],
                               plot_grid(plotlist = plot_ls[-1], nrow = 1),
                               ncol = 1, rel_heights = c(3, 1.7), labels = c("A", "B")
 )
-ggsave(InputMatrices_gg, filename = file.path(Dir.Exports, "Fig_InputMatrices.png"), 
+ggsave(InputMatrices_gg, filename = file.path(Dir.Concept, "Fig_InputMatrices.png"), 
        width = 36, height = 20, units = "cm")
 
 
@@ -639,7 +639,7 @@ AbundTime_gg <- ggplot(Abund_time, aes(x = t, y = Abundance, col = Species)) +
   geom_line(size = 1.5) + 
   scale_color_viridis_d() + 
   theme_bw()
-ggsave(AbundTime_gg, filename = file.path(Dir.Exports, "Fig_AbundanceTime.png"), 
+ggsave(AbundTime_gg, filename = file.path(Dir.Concept, "Fig_AbundanceTime.png"), 
        width = 30, height = 20, units = "cm")  
 
 ## Spatial Gradient ------------------------------------------------------------
@@ -661,7 +661,7 @@ Gradient_gg <- ggplot(gridmat, aes(x = x, y = y, fill = Phenotype)) +
                                 barheight = 15,
                                 title = "Optimal \n Phenotype")) + 
   theme_bw() + theme(plot.margin = unit(c(0,0,0,0), "cm"))
-ggsave(Gradient_gg, filename = file.path(Dir.Exports, "Fig_SpatialGradient.png"), 
+ggsave(Gradient_gg, filename = file.path(Dir.Concept, "Fig_SpatialGradient.png"), 
        width = 20, height = 22, units = "cm")  
 
 ## Network Inference -----------------------------------------------------------
@@ -671,34 +671,14 @@ source2 <- function(file, start, end, ...) {
   file.lines.collapsed <- paste(file.lines, collapse='\n')
   source(textConnection(file.lines.collapsed), ...)
 }
-source2("Inference.R", 62, 313)
+source2("Inference.R", 62, 360)
 
 models_ls <- FUN.Inference(Simulation_Output, 
                            Dir.Models = Dir.Concept,
+                           ModelSave = TRUE,
                            Dir.Exports = Dir.Concept,
                            Treatment_Iter = "Concept",
-                           Cores = 1)
-
-print("Input network matrix")
-net_mat <- as_adjacency_matrix(Simulation_Output$Network, attr = "weight",
-                               type = "upper", sparse = FALSE)
-net_mat[lower.tri(net_mat)] <- NA
-diag(net_mat) <- NA
-colnames(net_mat) <- rownames(net_mat) <- V(Simulation_Output$Network)
-edg_df1 <- melt(net_mat)
-colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
-TrueMat_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
-  geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
-  coord_fixed() +
-  guides(fill = guide_colourbar(barwidth = 2,
-                                barheight = 15,
-                                title = "Associatiuon")) + 
-  theme_bw() + 
-  theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
-  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
-
-ggsave(TrueMat_gg, filename = file.path(Dir.Exports, "Matrix_True.png"), 
-       width = 20, height = 22, units = "cm")  
+                           Cores = 4)
 
 print("HMSC network matrix")
 if(length(E(models_ls$Informed$Graphs$HMSC)) != 0){
@@ -751,5 +731,81 @@ InfMat_gg <- ggplot(edg_df2,
   theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
   scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
 
-ggsave(InfMat_gg, filename = file.path(Dir.Exports, "Fig_Matrix_Inferred.png"), 
-       width = 40, height = 22, units = "cm")  
+ggsave(InfMat_gg, filename = file.path(Dir.Concept, "Fig_Matrix_Inferred.png"), 
+       width = 40, height = 22, units = "cm")
+
+## Network Realisation ---------------------------------------------------------
+### True NonRealised ----
+Realisation <- "NonReal"
+net_mat <- as_adjacency_matrix(models_ls$Weighted[[Realisation]], attr = "weight",
+                               type = "upper", sparse = FALSE)
+net_mat[lower.tri(net_mat)] <- NA
+diag(net_mat) <- NA
+colnames(net_mat) <- rownames(net_mat) <- V(Simulation_Output$Network)
+edg_df1 <- melt(net_mat)
+colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
+TrueMat_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
+  geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
+  coord_fixed() +
+  guides(fill = guide_colourbar(barwidth = 2,
+                                barheight = 15,
+                                title = "Association")) + 
+  theme_bw() + 
+  theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
+  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
+
+### Trait Difference ----
+ID_df <- models_ls$ID_df
+SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean)
+SPTrait_df$SD <- aggregate(ID_df, Trait ~ Species, FUN = sd)$Trait
+SPTrait_mat <- abs(outer(SPTrait_df$Trait, SPTrait_df$Trait, '-'))
+colnames(SPTrait_mat) <- rownames(SPTrait_mat) <- SPTrait_df$Species
+SPTraitSD_mat <- abs(outer(SPTrait_df$SD, SPTrait_df$SD, '+'))
+colnames(SPTraitSD_mat) <- rownames(SPTraitSD_mat) <- SPTrait_df$Species
+
+TraitDiff_mat <- SPTrait_mat-SPTraitSD_mat
+diag(TraitDiff_mat) <- NA
+TraitDiff_mat[lower.tri(TraitDiff_mat)] <- NA
+
+d2.df <- reshape2::melt(TraitDiff_mat, c("x", "y"), value.name = "z")
+head(d2.df)
+d2.df$Realised <- FALSE
+d2.df$Realised[which(d2.df$z < Simulation_Output$Call$sd+Simulation_Output$Call$Effect_Dis)] <- TRUE
+
+TraitDiff_gg <- ggplot(data = d2.df, aes(x = x, y = y, fill = z))+
+  geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
+  coord_fixed() +
+  guides(fill = guide_colourbar(barwidth = 2,
+                                barheight = 15,
+                                title = "Trait \n Difference")) + 
+  scale_fill_viridis_c() +
+  geom_point(aes(shape = Realised)) + 
+  scale_shape_manual(values = c(26, 15)) + 
+  theme_bw() + 
+  theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
+  labs(x = "Partner 1", y = "Partner 2") + guides(shape = "none") 
+
+### True Realised ----
+Realisation <- "Real"
+net_mat <- as_adjacency_matrix(models_ls$Weighted[[Realisation]], attr = "weight",
+                               type = "upper", sparse = FALSE)
+net_mat[lower.tri(net_mat)] <- NA
+diag(net_mat) <- NA
+colnames(net_mat) <- rownames(net_mat) <- V(Simulation_Output$Network)
+edg_df1 <- melt(net_mat)
+colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
+TrueMatReal_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
+  geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
+  coord_fixed() +
+  guides(fill = guide_colourbar(barwidth = 2,
+                                barheight = 15,
+                                title = "Association")) + 
+  theme_bw() + 
+  theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
+  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
+
+### Plotting ----
+ggsave(cowplot::plot_grid(TrueMat_gg, TraitDiff_gg, TrueMatReal_gg, ncol = 3, labels = "AUTO"),
+       filename = file.path(Dir.Concept, "Fig_Realisation.png"), 
+       width = 42, height = 11, units = "cm"
+       )
