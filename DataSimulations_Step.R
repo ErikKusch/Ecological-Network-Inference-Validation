@@ -36,18 +36,18 @@ source("SimulationFrameworkFunctions.R")
 
 # SIMULATION RUNS ======================================================
 ## number of simulations to run
-n_runs <- 5e2
+n_runs <- 1e3
 
 ## cluster
 message("Registering Clusters")
-ncores <- ifelse(parallel::detectCores() > 50, 50, parallel::detectCores())
+ncores <- ifelse(parallel::detectCores() > 25, 25, parallel::detectCores())
 cl <- parallel::makeCluster(ncores)
 doSNOW::registerDoSNOW(cl)
 # doParallel::registerDoParallel(cl)
 
 ## running simulations
 message("Running Simulation Framework")
-for(Env_sd in c(1, 0.75, 2.5, 5, 10)){
+for(Env_sd in c(1)){ # , 0.75, 2.5, 5, 10
   print(paste("Data simulation env_sd =", Env_sd))
   RunName <- paste("Association", Env_sd, sep = "_")
   pb <- txtProgressBar(max = n_runs, style = 3)
@@ -61,24 +61,24 @@ for(Env_sd in c(1, 0.75, 2.5, 5, 10)){
       Simulation_Output <- FUN.SimulationFramework(
         seed = ITER,
         ## Network Creation
-        n_spec = 20,
+        n_spec = 30,
         NetworkType = "Association", # or "Association"
-        Sparcity = 0.5,
-        MaxStrength = 1,
+        Sparcity = 0.1,
+        MaxStrength = 10,
         ## Initial Individual Creation
         n_individuals = 5e2,
         n_mode = "each", # or "total"
         Env_range = c(0, 10),
         Trait_sd = 1,
         ## Carrying Capacity Creation
-        k_range = c(200,200),
+        k_range = c(300,300),
         ## Simulation Parameters
         d0 = 0.4,
         b0 = 0.6,
         env.xy = function(x = NULL, y = NULL){x},
         t_max = 20,
         t_inter = 0.1,
-        sd = 1,
+        sd = Env_sd,
         migration = 0.2,
         Effect_Dis = 0.5,
         verbose = FALSE
