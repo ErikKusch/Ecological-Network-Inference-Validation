@@ -63,6 +63,7 @@ Data_fs <- Data_fs[unlist(lapply(strsplit(Data_fs, split = "_"), "[[", 2)) == 1]
 FUN.Inference <- function(Simulation_Output = NULL, 
                           Dir.Exports = NULL,
                           Dir.Models = NULL,
+                          ModelSave = FALSE,
                           Treatment_Iter = NULL,
                           Cores = 1){
   ### DATA READOUT ####
@@ -92,9 +93,10 @@ FUN.Inference <- function(Simulation_Output = NULL,
   colnames(SPTrait_mat) <- rownames(SPTrait_mat) <- colnames(Network_Realised)
   SPTraitSD_mat <- abs(outer(SPTrait_df$SD, SPTrait_df$SD, '+'))
   colnames(SPTraitSD_mat) <- rownames(SPTraitSD_mat) <- colnames(Network_Realised)
+  TraitDiff_mat <- SPTrait_mat-SPTraitSD_mat
   
   # limitting to realised interactions
-  Network_Realised[(SPTrait_mat-SPTraitSD_mat) > 0.5] <- 0 # anything greater apart in enviro pref than the interaction window (0.5) cannot be realised
+  Network_Realised[(TraitDiff_mat) > Simulation_Output$Call$sd+Simulation_Output$Call$Effect_Dis] <- 0 # anything greater apart in enviro pref than the interaction window (0.5) + environmental sd cannot be realised
   Network_SurvReal <- igraph::graph_from_adjacency_matrix(adjmatrix = Network_Realised,
                                                       mode = mode,
                                                       weighted = TRUE,
@@ -227,7 +229,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
                                nParallel = Cores
                                # nChains
       )
-      # save(hmsc_model, file = ModelPath)
+      if(ModelSave){save(hmsc_model, file = ModelPath)}
     }
     OmegaCor <- computeAssociations(hmsc_model)
     supportLevel <- 0.95
