@@ -8,7 +8,7 @@
 #' AUTHOR: [Erik Kusch]
 #' ####################################################################### #
 
-# PREAMBLE =================================================================
+# PREAMBLE =====================================================================
 source("Inference.R")
 OneSD <- unlist(lapply(strsplit(names(Inference_ls), split = "_"), "[[", 2)) == 1
 Inference_ls <- Inference_ls[OneSD]
@@ -19,349 +19,446 @@ Dir.Concept <- file.path(Dir.Base, "Concept")
 Dirs <- c(Dir.Concept)
 CreateDir <- sapply(Dirs, function(x) if(!dir.exists(x)) dir.create(x))
 
-# BETA DIVERSITY ===========================================================
-message("Comparison of Dissimilarities")
-Dissimilarities <- do.call(rbind, 
-                           pblapply(Inference_ls, FUN = function(x){
-                             data.frame(
-                               # Naive = x$Naive$Dissimilarity$OS, 
-                               HMSC = x$Informed$Dissimilarity$OS,
-                               COOCCUR = x$COOCCUR$Dissimilarity$OS
-                             )
-                           })
-)
-Dissimilarities_df <- data.frame(OS = c(Dissimilarities$COOCCUR,
-                                        Dissimilarities$HMSC),
-                                 Mode = rep(c("COOCCUR", "HMSC"), 
-                                            each = nrow(Dissimilarities))
-)
+# INFERRED VS. INFERRED ========================================================
+InfComp <- pblapply(Inference_ls, FUN = function(Sim){
+  as.data.frame(betalink(Sim$Informed$Graphs$HMSC, Sim$COOCCUR$Graphs$COOCCUR))
+})
+InfComp_df <- as.data.frame(do.call(rbind, InfComp))
 
-OS_gg <- ggplot(Dissimilarities_df, 
-                aes(x = OS, y = factor(Mode, levels = c("COOCCUR", "HMSC")))) + 
+ggplot(data = InfComp_df, aes(x = OS)) + 
   stat_halfeye() + 
-  theme_bw() + labs(y = "")
-ggsave(OS_gg, filename = file.path(Dir.Exports, "OS.png"), 
+  theme_bw() + 
+  labs(x = "Network Dissimilarity", y = "")
+ggsave(filename = file.path(Dir.Exports, "Fig_InfVInf.png"), 
        width = 16, height = 9, units = "cm")
 
-# DETECTION REGRESSION =====================================================
+# BETA DIVERSITY ===============================================================
+message("Comparison of Dissimilarities")
+Dissimilarities_df <- do.call(rbind, 
+                           pblapply(Inference_ls, FUN = function(x){
+                             HMSC = x$Informed$Dissimilarity
+                             COOCCUR = x$COOCCUR$Dissimilarity
+                             rbind(COOCCUR, HMSC)
+                           })
+)
+Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvNonReal", replacement = "Full True Network")
+Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvReal", replacement = "Realisable True Network")
+
+OS_gg <- ggplot(Dissimilarities_df, 
+                aes(x = OS, y = factor(i, levels = c("COOCCUR", "HMSC")))) + 
+  stat_halfeye() + 
+  facet_wrap(~j, scales = "free_x") + 
+  theme_bw() + labs(y = "", x = "Link Dissimilarity")
+OS_gg
+ggsave(OS_gg, filename = file.path(Dir.Exports, "Fig_OS.png"), 
+       width = 16, height = 8, units = "cm")
+
+# DETECTION REGRESSION =========================================================
 message("Detection of Positive, Negative, and Absent Associations")
-Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
+Detection_ls <- lapply(names(Inference_ls), FUN = function(SimName){
+  # SimName <- names(Inference_ls)[12] 
   # print(SimName)
   x <- Inference_ls[[SimName]]
-  ## matrices of networks
-  ### true/known
-  V(x$Informed$Graphs$True)$name <- gsub(V(x$Informed$Graphs$True)$name, pattern = "Sp_", replacement = "")
-  True_mat <- as_adjacency_matrix(x$Informed$Graphs$True, 
-                                  attr = "weight", type = "upper", sparse = FALSE) 
-  True_mat[lower.tri(True_mat)] <- NA
-  diag(True_mat) <- NA
+  TrueNonReal <- x$Informed$Graphs$SurvNonReal
+  TrueReal <- x$Informed$Graphs$SurvReal
+  Detects_ls <- list(TrueNonReal = TrueNonReal,
+                     TrueReal = TrueReal
+                     )
+  Weighted_ls <- list(TrueNonReal = x$Weighted$NonReal,
+                      TrueReal = x$Weighted$Real)
   
-  Weighted_mat <- as_adjacency_matrix(x$TrueNetwork, 
-                                      attr = "weight", type = "upper", sparse = FALSE)
-  Weighted_mat[lower.tri(Weighted_mat)] <- NA
-  diag(Weighted_mat) <- NA
-  colnames(Weighted_mat) <- rownames(Weighted_mat) <- colnames(True_mat)
-  
-  #### inferred
-  V(x$Informed$Graphs$HMSC)$name <- as.numeric(gsub(V(x$Informed$Graphs$HMSC)$name, pattern = "Sp_", replacement = ""))
-  addvert <- rownames(True_mat)[rownames(True_mat) %nin% V(x$Informed$Graphs$HMSC)$name]
-  if(length(addvert) > 0){
-    x$Informed$Graphs$HMSC <- add.vertices(x$Informed$Graphs$HMSC, length(addvert), name = addvert)
-  }
-  x$Informed$Graphs$HMSC <- permute(x$Informed$Graphs$HMSC, match(V(x$Informed$Graphs$HMSC)$name, 1:20))
-  HMSC_mat <- as_adjacency_matrix(x$Informed$Graphs$HMSC, 
-                                      attr = "weight", type = "upper", sparse = FALSE)
-  HMSC_mat[lower.tri(HMSC_mat)] <- NA
-  diag(HMSC_mat) <- NA
-  
-  V(x$COOCCUR$Graphs$COOCCUR)$name <- as.numeric(gsub(V(x$COOCCUR$Graphs$COOCCUR)$name, pattern = "Sp_", replacement = ""))
-  addvert <- rownames(True_mat)[rownames(True_mat) %nin% V(x$COOCCUR$Graphs$COOCCUR)$name]
-  if(length(addvert) > 0){
-    x$COOCCUR$Graphs$COOCCUR <- add.vertices(x$COOCCUR$Graphs$COOCCUR, length(addvert), name = addvert)
-  }
-  x$COOCCUR$Graphs$COOCCUR <- permute(x$COOCCUR$Graphs$COOCCUR, match(V(x$COOCCUR$Graphs$COOCCUR)$name, 1:20))
-  COOCCUR_mat <- as_adjacency_matrix(x$COOCCUR$Graphs$COOCCUR, 
-                                   attr = "weight", type = "upper", sparse = FALSE)
-  COOCCUR_mat[lower.tri(COOCCUR_mat)] <- NA
-  diag(COOCCUR_mat) <- NA
-  
-  matrices <- list(True = True_mat,
-                   Weighted = Weighted_mat,
-                   HMSC = HMSC_mat,
-                   COOCCUR = COOCCUR_mat)
-  
-  # ### sorting
-  # True_mat <- True_mat[order(as.numeric(rownames(True_mat))),
-  #                      order(as.numeric(colnames(True_mat)))]
-  # Weighted_mat <- Weighted_mat[order(as.numeric(rownames(Weighted_mat))),
-  #                              order(as.numeric(colnames(Weighted_mat)))]
-  # COOCCUR_mat <- COOCCUR_mat[order(as.numeric(rownames(COOCCUR_mat))),
-  #                            order(as.numeric(colnames(COOCCUR_mat)))]
-  # HMSC_mat <- HMSC_mat[order(as.numeric(rownames(HMSC_mat))),
-  #                      order(as.numeric(colnames(HMSC_mat)))]
-  
-  InferenceMats_ls <- list(HMSC = HMSC_mat,
-                           COOCCUR = COOCCUR_mat)
-  
-  ### limitting to species who did not go extinct in simulation
-  if(sum(!(rownames(True_mat) %in% rownames(COOCCUR_mat))) != 0){stop("COOCCUR Missing Species")}
-  if(sum(!(rownames(True_mat) %in% rownames(HMSC_mat))) != 0){stop("HMSC Missing Species")}
-  # True_mat <- True_mat[rownames(True_mat) %in% rownames(COOCCUR_mat),
-  #                      colnames(True_mat) %in% colnames(COOCCUR_mat)]
-  # 
-  # Weighted_mat <- Weighted_mat[rownames(Weighted_mat) %in% rownames(HMSC_mat),
-  #                              colnames(Weighted_mat) %in% colnames(HMSC_mat)]
-  # TruePos_mat <- TrueNeg_mat <- TrueAbs_mat <- True_mat
-  # TruePos_mat[TruePos_mat != 1] <- 0
-  # TrueNeg_mat[TrueNeg_mat != -1] <- 0
-  # TrueAbs_mat[TrueAbs_mat != 0] <- 0
-  
-  ## environmental preferences of species
-  Traits <- aggregate(Trait ~ Species, data = x$ID_df, FUN = mean)
-  Traits$Species <- gsub(Traits$Species, pattern = "Sp_", replacement = "")
-  if(length(rownames(True_mat)[rownames(True_mat) %nin% Traits$Species]) > 0){
-    Traits <- rbind(Traits, 
-                    data.frame(
-                      Species = rownames(True_mat)[rownames(True_mat) %nin% Traits$Species],
-                      Trait = NA
-                    ))
-  }
-  EnvDiff_mat <- True_mat
-  for(i in rownames(EnvDiff_mat)){
-    focaltrait <- Traits$Trait[Traits$Species == i]
-    alltraitsorder <- Traits$Trait[match(colnames(EnvDiff_mat), Traits$Species)]
-    EnvDiff_mat[i,] <- abs(focaltrait - alltraitsorder)
-  }
-  EnvDiff_mat[lower.tri(EnvDiff_mat)] <- NA
-  diag(EnvDiff_mat) <- NA
-  
-  ## inference classification
-  InferenceCalss_ls <- lapply(names(InferenceMats_ls), FUN = function(k){
-    data.frame(
-      CorrectPos = as.numeric((True_mat + InferenceMats_ls[[k]]) == 2), # true positive
-      CorrectNeg = as.numeric((True_mat + InferenceMats_ls[[k]]) == -2), # true negative
-      CorrectAbsent = as.numeric(((True_mat == 0) + (InferenceMats_ls[[k]] == 0) == 2)), # true absent
-      Magnitude = abs(as.vector(Weighted_mat)),
-      SignTrue = as.vector(sign(Weighted_mat)),
-      SIgnInferred = as.vector(InferenceMats_ls[[k]]),
-      EnvDiff = as.vector(EnvDiff_mat),
-      Mode = k,
-      Sim = SimName
-    )
+  Up_ls <- lapply(names(Detects_ls), FUN = function(y){
+    # y <- "TrueReal"
+    ## matrices of networks
+    ### true/known
+    V(Detects_ls[[y]])$name <- gsub(V(Detects_ls[[y]])$name, pattern = "Sp_", replacement = "")
+    True_mat <- as_adjacency_matrix(Detects_ls[[y]],
+                                    attr = "weight", type = "upper", sparse = FALSE)
+    True_mat[lower.tri(True_mat)] <- NA
+    diag(True_mat) <- NA
+    
+    Weighted_mat <- as_adjacency_matrix(Weighted_ls[[y]],
+                                        attr = "weight", type = "upper", sparse = FALSE)
+    Weighted_mat[lower.tri(Weighted_mat)] <- NA
+    diag(Weighted_mat) <- NA
+    colnames(Weighted_mat) <- rownames(Weighted_mat) <- colnames(True_mat)
+    
+    #### inferred
+    V(x$Informed$Graphs$HMSC)$name <- as.numeric(gsub(V(x$Informed$Graphs$HMSC)$name, pattern = "Sp_", replacement = ""))
+    addvert <- rownames(True_mat)[rownames(True_mat) %nin% V(x$Informed$Graphs$HMSC)$name]
+    if(length(addvert) > 0){
+      x$Informed$Graphs$HMSC <- add.vertices(x$Informed$Graphs$HMSC, length(addvert), name = addvert)
+    }
+    x$Informed$Graphs$HMSC <- permute(x$Informed$Graphs$HMSC, match(V(x$Informed$Graphs$HMSC)$name, rownames(True_mat)))
+    HMSC_mat <- as_adjacency_matrix(x$Informed$Graphs$HMSC, 
+                                    attr = "weight", type = "upper", sparse = FALSE)
+    HMSC_mat[lower.tri(HMSC_mat)] <- NA
+    diag(HMSC_mat) <- NA
+    
+    x$COOCCUR$Graphs$COOCCUR <- as.undirected(x$COOCCUR$Graphs$COOCCUR)
+    V(x$COOCCUR$Graphs$COOCCUR)$name <- as.numeric(gsub(V(x$COOCCUR$Graphs$COOCCUR)$name, pattern = "Sp_", replacement = ""))
+    addvert <- rownames(True_mat)[rownames(True_mat) %nin% V(x$COOCCUR$Graphs$COOCCUR)$name]
+    if(length(addvert) > 0){
+      x$COOCCUR$Graphs$COOCCUR <- add.vertices(x$COOCCUR$Graphs$COOCCUR, length(addvert), name = addvert)
+    }
+    x$COOCCUR$Graphs$COOCCUR <- permute(x$COOCCUR$Graphs$COOCCUR, match(V(x$COOCCUR$Graphs$COOCCUR)$name, rownames(True_mat)))
+    COOCCUR_mat <- as_adjacency_matrix(x$COOCCUR$Graphs$COOCCUR, 
+                                       attr = "weight", type = "upper", sparse = FALSE)
+    COOCCUR_mat[lower.tri(COOCCUR_mat)] <- NA
+    diag(COOCCUR_mat) <- NA
+    
+    matrices <- list(True = True_mat,
+                     Weighted = Weighted_mat,
+                     HMSC = HMSC_mat,
+                     COOCCUR = COOCCUR_mat)
+    
+    # ### sorting
+    # True_mat <- True_mat[order(as.numeric(rownames(True_mat))),
+    #                      order(as.numeric(colnames(True_mat)))]
+    # Weighted_mat <- Weighted_mat[order(as.numeric(rownames(Weighted_mat))),
+    #                              order(as.numeric(colnames(Weighted_mat)))]
+    # COOCCUR_mat <- COOCCUR_mat[order(as.numeric(rownames(COOCCUR_mat))),
+    #                            order(as.numeric(colnames(COOCCUR_mat)))]
+    # HMSC_mat <- HMSC_mat[order(as.numeric(rownames(HMSC_mat))),
+    #                      order(as.numeric(colnames(HMSC_mat)))]
+    
+    InferenceMats_ls <- list(HMSC = HMSC_mat,
+                             COOCCUR = COOCCUR_mat)
+    
+    ### limitting to species who did not go extinct in simulation
+    if(sum(!(rownames(True_mat) %in% rownames(COOCCUR_mat))) != 0){stop("COOCCUR Missing Species")}
+    if(sum(!(rownames(True_mat) %in% rownames(HMSC_mat))) != 0){stop("HMSC Missing Species")}
+    # True_mat <- True_mat[rownames(True_mat) %in% rownames(COOCCUR_mat),
+    #                      colnames(True_mat) %in% colnames(COOCCUR_mat)]
+    # 
+    # Weighted_mat <- Weighted_mat[rownames(Weighted_mat) %in% rownames(HMSC_mat),
+    #                              colnames(Weighted_mat) %in% colnames(HMSC_mat)]
+    # TruePos_mat <- TrueNeg_mat <- TrueAbs_mat <- True_mat
+    # TruePos_mat[TruePos_mat != 1] <- 0
+    # TrueNeg_mat[TrueNeg_mat != -1] <- 0
+    # TrueAbs_mat[TrueAbs_mat != 0] <- 0
+    
+    ## environmental preferences of species
+    Traits <- aggregate(Trait ~ Species, data = x$ID_df, FUN = mean)
+    Traits$Species <- gsub(Traits$Species, pattern = "Sp_", replacement = "")
+    if(length(rownames(True_mat)[rownames(True_mat) %nin% Traits$Species]) > 0){
+      Traits <- rbind(Traits, 
+                      data.frame(
+                        Species = rownames(True_mat)[rownames(True_mat) %nin% Traits$Species],
+                        Trait = NA
+                      ))
+    }
+    EnvDiff_mat <- True_mat
+    for(i in rownames(EnvDiff_mat)){
+      focaltrait <- Traits$Trait[Traits$Species == i]
+      alltraitsorder <- Traits$Trait[match(colnames(EnvDiff_mat), Traits$Species)]
+      EnvDiff_mat[i,] <- abs(focaltrait - alltraitsorder)
+    }
+    EnvDiff_mat[lower.tri(EnvDiff_mat)] <- NA
+    diag(EnvDiff_mat) <- NA
+    
+    ## inference classification
+    InferenceCalss_ls <- lapply(names(InferenceMats_ls), FUN = function(k){
+      data.frame(
+        CorrectPos = as.numeric((True_mat + InferenceMats_ls[[k]]) == 2), # true positive
+        CorrectNeg = as.numeric((True_mat + InferenceMats_ls[[k]]) == -2), # true negative
+        CorrectAbsent = as.numeric(((True_mat == 0) + (InferenceMats_ls[[k]] == 0) == 2)), # true absent
+        Magnitude = abs(as.vector(Weighted_mat)),
+        SignTrue = as.vector(sign(Weighted_mat)),
+        SIgnInferred = as.vector(InferenceMats_ls[[k]]),
+        EnvDiff = as.vector(EnvDiff_mat),
+        Mode = k,
+        Sim = SimName,
+        Comparison = y
+      )
+    })
+    Inference_df <- do.call(rbind, InferenceCalss_ls)
+    list(Dataframe = Inference_df[!is.na(Inference_df$Magnitude), ],
+         Matrices = matrices)
   })
-  Inference_df <- do.call(rbind, InferenceCalss_ls)
-  list(Dataframe = Inference_df[!is.na(Inference_df$Magnitude), ],
-       Matrices = matrices)
+  names(Up_ls) <- names(Detects_ls)
+  Up_ls
 })
 names(Detection_ls) <- names(Inference_ls)
 
-## Correct Identification of Positive Associations -----------------------------
-Detect_df <- do.call(rbind, lapply(Detection_ls, "[[", 1))
-print("Models of Positive Associations")
-if(file.exists(file.path(Dir.Exports, "Bayes_Model_Positive.RData"))){
-  load(file.path(Dir.Exports, "Bayes_Model_Positive.RData"))
-}else{
-  Bayes_Model_Positive <- list(HMSC = NA, COOCCUR = NA)
-  for(i in names(Bayes_Model_Positive)){
-    model_df <- Detect_df[Detect_df$Mode == i, ]
-    Bayes_Model_Positive[[i]] <- brm(formula = CorrectPos ~Magnitude * EnvDiff,
-                                data = model_df,
-                                family = bernoulli(link = "logit"),
-                                warmup = nWarmup,
-                                iter = nSamples,
-                                chains = nChains,
-                                cores = nChains,
-                                seed = 42)
-  }
-  save(Bayes_Model_Positive, 
-       file = file.path(Dir.Exports, "Bayes_Model_Positive.RData"))
-}
+DetectionModels_df <- lapply(X = names(Detection_ls[[1]]), 
+                               FUN = function(Realisation){
+                                 Detect_df <- lapply(Detection_ls, "[[", Realisation)
+                                 Detect_df <- do.call(rbind, 
+                                                      lapply(Detect_df, "[[", "Dataframe")
+                                                      )
+                                 rownames(Detect_df) <- c()
+                             
+                                 ## Correct Identification of Positive Associations -----------------------------
+                                 print("Models of Positive Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0("Bayes_Model_Positive_", Realisation,".RData")))){
+                                   load(file.path(Dir.Exports, paste0("Bayes_Model_Positive_", Realisation,".RData")))
+                                 }else{
+                                   Bayes_Model_Positive <- list(HMSC = NA, COOCCUR = NA)
+                                   for(i in names(Bayes_Model_Positive)){
+                                     model_df <- Detect_df[Detect_df$Mode == i, ]
+                                     Bayes_Model_Positive[[i]] <- brm(formula = CorrectPos ~Magnitude * EnvDiff,
+                                                                      data = model_df,
+                                                                      family = bernoulli(link = "logit"),
+                                                                      warmup = nWarmup,
+                                                                      iter = nSamples,
+                                                                      chains = nChains,
+                                                                      cores = nChains,
+                                                                      seed = 42)
+                                   }
+                                   save(Bayes_Model_Positive, 
+                                        file = file.path(Dir.Exports, paste0("Bayes_Model_Positive_", Realisation,".RData")))
+                                 }
+                                 
+                                 ## Correct Identification of Negative Associations -----------------------------
+                                 print("Models of Negative Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0("Bayes_Model_Negative_", Realisation,".RData")))){
+                                   load(file.path(Dir.Exports, paste0("Bayes_Model_Negative_", Realisation,".RData")))
+                                 }else{
+                                   Bayes_Model_Negative <- list(HMSC = NA, COOCCUR = NA)
+                                   for(i in names(Bayes_Model_Negative)){
+                                     model_df <- Detect_df[Detect_df$Mode == i, ]
+                                     Bayes_Model_Negative[[i]] <- brm(formula = CorrectNeg ~Magnitude * EnvDiff,
+                                                                      data = model_df,
+                                                                      family = bernoulli(link = "logit"),
+                                                                      warmup = nWarmup,
+                                                                      iter = nSamples,
+                                                                      chains = nChains,
+                                                                      cores = nChains,
+                                                                      seed = 42)
+                                   }
+                                   save(Bayes_Model_Negative, 
+                                        file = file.path(Dir.Exports, paste0("Bayes_Model_Negative_", Realisation,".RData")))
+                                 }
+                                 
+                                 ## Correct Identification of Absent Associations -------------------------------
+                                 print("Models of Absent Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0("Bayes_Model_Absent_", Realisation,".RData")))){
+                                   load(file.path(Dir.Exports, paste0("Bayes_Model_Absent_", Realisation,".RData")))
+                                 }else{
+                                   Bayes_Model_Absent <- list(HMSC = NA, COOCCUR = NA)
+                                   for(i in names(Bayes_Model_Absent)){
+                                     model_df <- Detect_df[Detect_df$Mode == i, ]
+                                     Bayes_Model_Absent[[i]] <- brm(formula = CorrectAbsent ~ Magnitude * EnvDiff,
+                                                                    data = model_df,
+                                                                    family = bernoulli(link = "logit"),
+                                                                    warmup = nWarmup,
+                                                                    iter = nSamples,
+                                                                    chains = nChains,
+                                                                    cores = nChains,
+                                                                    seed = 42)
+                                   }
+                                   save(Bayes_Model_Absent, 
+                                        file = file.path(Dir.Exports, paste0("Bayes_Model_Absent_", Realisation,".RData")))
+                                 }
+                                 
+                                 ## Plotting --------------------------------------------------------------------
+                                 
+                                 FUN_plotcoeffs <- function(plottdf){
+                                   plot_ls <- as.list(rep(NA, length(unique(plottdf$Method))))
+                                   plottdf <- plottdf[plottdf$value != Inf, ]
+                                   for(i in 1:length(plot_ls)){
+                                     Method_iter <- rev(unique(plottdf$Method))[i]
+                                     plot_df <- plottdf[plottdf$Method == Method_iter, ]
+                                     plot_ls[[i]] <- ggplot(plot_df[plot_df$value < 1e3,], # this limitation is here awaiting further simulation runs and better bayesian model fit 
+                                            aes(x = value)) + 
+                                       geom_histogram(bins = 1e2) +
+                                       # geom_density() + 
+                                       labs(y = "Model Coefficient", x = "") + 
+                                       facet_wrap(~ factor(variable, levels = c("Intercept", "Magnitude", "Environmental \n Difference", "Interaction")), 
+                                                  ncol = 2, scales = "free") + 
+                                       geom_vline(xintercept = 0) + 
+                                       theme_bw() 
+                                     # + labs(title = Method_iter)
+                                   }
+                                   return(cowplot::plot_grid(plotlist = plot_ls, ncol = 1))
+                                 }
+                                 
+                                 print("Plotting")
+                                 Plot_ls <- list(Positive = Bayes_Model_Positive,
+                                                 Negative = Bayes_Model_Negative,
+                                                 Absent = Bayes_Model_Absent
+                                 )
+                                 ProbMat <- expand.grid(seq(from = 0, to = 1, by = 0.05),
+                                                        seq(from = 0, to = 10, by = 0.5))
+                                 colnames(ProbMat) <- c("Magnitude", "EnvDiff")
+                                 
+                                 for(k in names(Plot_ls)){
+                                   Bayes_ls <- Plot_ls[[k]]
+                                   
+                                   HMSC_df <- posterior_samples(Bayes_ls[["HMSC"]])
+                                   HMSC_df[,-1] <- apply(HMSC_df[,-1], MARGIN = 2, FUN = function(x){
+                                     exp(HMSC_df$b_Intercept + x) - 
+                                       exp(HMSC_df$b_Intercept)
+                                   })
+                                   HMSC_df$b_Intercept <- exp(HMSC_df$b_Intercept)
+                                   HMSC_df <- reshape2::melt(HMSC_df[,1:4])
+                                   HMSC_df$Method <- "HMSC"
+                                   
+                                   COOCCUR_df <- posterior_samples(Bayes_ls[["COOCCUR"]])
+                                   COOCCUR_df[,-1] <- apply(COOCCUR_df[,-1], MARGIN = 2, FUN = function(x){
+                                     exp(COOCCUR_df$b_Intercept + x) - 
+                                       exp(COOCCUR_df$b_Intercept)
+                                   })
+                                   COOCCUR_df$b_Intercept <- exp(COOCCUR_df$b_Intercept)
+                                   COOCCUR_df <- reshape2::melt(COOCCUR_df[,1:4])
+                                   COOCCUR_df$Method <- "COOCCUR"
+                                   
+                                   post_plot <- rbind(HMSC_df, COOCCUR_df)
+                                   post_plot$variable <- c("Intercept", "Magnitude", "Environmental \n Difference", "Interaction")[match(post_plot$variable, unique(post_plot$variable))]
+                                   
+                                   
+                                   Coeff_gg <- FUN_plotcoeffs(post_plot)
+                                     # ggplot(post_plot, aes(x = value, 
+                                     #                                 y = factor(variable, levels = rev(c("Intercept", "Magnitude", "Environmental \n Difference", "Interaction")))
+                                     #                                 )
+                                     #                  ) + 
+                                     # stat_halfeye() +
+                                     # # geom_histogram()
+                                     # labs(y = "Model Coefficient", x = "Coefficient Estimate") + 
+                                     # facet_wrap(~Method, ncol = 1, scales = "free_x") + 
+                                     # theme_bw()
+                                   
+                                   for(i in names(Bayes_ls)){
+                                     post_df <- posterior_samples(Bayes_ls[[i]])
+                                     prob_iter <- ProbMat
+                                     prob_iter$Prob <- apply(prob_iter, MARGIN = 1, FUN = function(x){
+                                       mean(inv_logit(post_df$b_Intercept + 
+                                                        post_df$b_EnvDiff * as.numeric(x[2]) + 
+                                                        (post_df$b_Magnitude + post_df$`b_Magnitude:EnvDiff` * as.numeric(x[2])) * as.numeric(x[1])
+                                       )
+                                       )
+                                     })
+                                     prob_iter$Method <- i
+                                     if(exists("prob_plot")){
+                                       prob_plot <- rbind(prob_plot, prob_iter)
+                                     }else{
+                                       prob_plot <- prob_iter
+                                     }
+                                   }
+                                   
+                                   Prob_gg <- ggplot(prob_plot, aes(x = EnvDiff, y = Magnitude, fill = Prob)) + 
+                                     geom_tile() + 
+                                     guides(fill = guide_colourbar(barwidth = 2,
+                                                                   barheight = 15,
+                                                                   title = "Probability of \n Indetification")) + 
+                                     theme_bw() + 
+                                     labs(y = "Association Magnitude", x = "Environmental Difference") +
+                                     scale_fill_viridis_c(option = "E", limits = c(0,1)) + 
+                                     facet_wrap(~ Method, ncol = 1)
+                                   
+                                   Plot_ls[[k]] <- cowplot::plot_grid(Coeff_gg, Prob_gg)
+                                   
+                                   # ggsave(Plot_ls[[k]], 
+                                   #        filename = file.path(Dir.Exports, paste0("Fig_Detection_", k, Realisation, ".png")), 
+                                   #        width = 30, height = 20, units = "cm")
+                                   
+                                   rm(prob_plot)
+                                 }
+                                 Plot_ls
+})
+names(DetectionModels_df) <- names(Detection_ls[[1]])
 
-## Correct Identification of Negative Associations -----------------------------
-print("Models of Negative Associations")
-if(file.exists(file.path(Dir.Exports, "Bayes_Model_Negative.RData"))){
-  load(file.path(Dir.Exports, "Bayes_Model_Negative.RData"))
-}else{
-  Bayes_Model_Negative <- list(HMSC = NA, COOCCUR = NA)
-  for(i in names(Bayes_Model_Negative)){
-    model_df <- Detect_df[Detect_df$Mode == i, ]
-    Bayes_Model_Negative[[i]] <- brm(formula = CorrectNeg ~Magnitude * EnvDiff,
-                                     data = model_df,
-                                     family = bernoulli(link = "logit"),
-                                     warmup = nWarmup,
-                                     iter = nSamples,
-                                     chains = nChains,
-                                     cores = nChains,
-                                     seed = 42)
-  }
-  save(Bayes_Model_Negative, 
-       file = file.path(Dir.Exports, "Bayes_Model_Negative.RData"))
-}
+WritePlot <- lapply(names(DetectionModels_df), FUN = function(Realisation){
+  ggsave(cowplot::plot_grid(plotlist = DetectionModels_df[[Realisation]], ncol = 1), 
+         filename = file.path(Dir.Exports, paste0("Fig_DetectionBayes_", Realisation, ".png")), 
+         width = 26, height = 38, units = "cm")
+  
+})
 
-## Correct Identification of Absent Associations -------------------------------
-print("Models of Absent Associations")
-if(file.exists(file.path(Dir.Exports, "Bayes_Model_Absent.RData"))){
-  load(file.path(Dir.Exports, "Bayes_Model_Absent.RData"))
-}else{
-  Bayes_Model_Absent <- list(HMSC = NA, COOCCUR = NA)
-  for(i in names(Bayes_Model_Absent)){
-    model_df <- Detect_df[Detect_df$Mode == i, ]
-    Bayes_Model_Absent[[i]] <- brm(formula = CorrectAbsent ~ Magnitude * EnvDiff,
-                                     data = model_df,
-                                     family = bernoulli(link = "logit"),
-                                     warmup = nWarmup,
-                                     iter = nSamples,
-                                     chains = nChains,
-                                     cores = nChains,
-                                     seed = 42)
-  }
-  save(Bayes_Model_Absent, 
-       file = file.path(Dir.Exports, "Bayes_Model_Absent.RData"))
-}
-
-## Plotting --------------------------------------------------------------------
-print("Plotting")
-Plot_ls <- list(Positive = Bayes_Model_Positive,
-                Negative = Bayes_Model_Negative,
-                Absent = Bayes_Model_Absent
-                )
-ProbMat <- expand.grid(seq(from = 0, to = 1, by = 0.05),
-                       seq(from = 0, to = 10, by = 0.5))
-colnames(ProbMat) <- c("Magnitude", "EnvDiff")
-
-for(k in names(Plot_ls)){
-  Bayes_ls <- Plot_ls[[k]]
-  
-  HMSC_df <- posterior_samples(Bayes_ls[["HMSC"]])
-  HMSC_df <- reshape2::melt(HMSC_df[,1:4])
-  HMSC_df$Method <- "HMSC"
-  COOCCUR_df <- posterior_samples(Bayes_ls[["COOCCUR"]])
-  COOCCUR_df <- reshape2::melt(COOCCUR_df[,1:4])
-  COOCCUR_df$Method <- "COOCCUR"
-  
-  post_plot <- rbind(HMSC_df, COOCCUR_df)
-  post_plot$variable <- c("Intercept", "Magnitude", "Environmental \n Difference", "Interaction")[match(post_plot$variable, unique(post_plot$variable))]
-  
-  
-  Coeff_gg <- ggplot(post_plot, aes(x = value, 
-                                    y = factor(variable, levels = rev(c("Intercept", "Magnitude", "Environmental \n Difference", "Interaction"))))) + 
-    stat_halfeye() + 
-    labs(y = "Model Coefficient", x = "Logit Value") + 
-    facet_wrap(~Method, ncol = 1) + 
-    theme_bw()
-  
-  for(i in names(Bayes_ls)){
-    post_df <- posterior_samples(Bayes_ls[[i]])
-    prob_iter <- ProbMat
-    prob_iter$Prob <- apply(prob_iter, MARGIN = 1, FUN = function(x){
-      mean(inv_logit(post_df$b_Intercept + 
-                       post_df$b_EnvDiff * as.numeric(x[2]) + 
-                       (post_df$b_Magnitude + post_df$`b_Magnitude:EnvDiff` * as.numeric(x[2])) * as.numeric(x[1])
-      )
-      )
-    })
-    prob_iter$Method <- i
-    if(exists("prob_plot")){
-      prob_plot <- rbind(prob_plot, prob_iter)
-    }else{
-      prob_plot <- prob_iter
-    }
-  }
-  
-  
-  Prob_gg <- ggplot(prob_plot, aes(x = EnvDiff, y = Magnitude, fill = Prob)) + 
-    geom_tile() + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Probability of \n Indetification")) + 
-    theme_bw() + 
-    labs(y = "Association Magnitude", x = "Environmental Difference") +
-    scale_fill_viridis_c(option = "E", limits = c(0,1)) + 
-    facet_wrap(~ Method, ncol = 1)
-  
-  Plot_ls[[k]] <- cowplot::plot_grid(Coeff_gg, Prob_gg)
-  
-  ggsave(Plot_ls[[k]], 
-         filename = file.path(Dir.Exports, paste0("Detection_", k, ".png")), 
-         width = 30, height = 20, units = "cm")
-  
-  rm(prob_plot)
-}
-
-# ERROR RATES ==============================================================
+# ERROR RATES ==================================================================
 message("Inference Error Rates")
-ErrorRates_df <- do.call(rbind, 
-                         pblapply(names(Detection_ls), FUN = function(SimName){
-                           # matrix extraction
-                           x <- Detection_ls[[SimName]]
-                           True_mat <- x$Matrices$True
-                           HMSC_mat <- x$Matrices$HMSC
-                           COOCCUR_mat <- x$Matrices$COOCCUR
-                           
-                           ### limitting to species who did not go extinct in simulation
-                           ExtantSpec <- unique(Inference_ls[[SimName]]$ID_df$Species)
-                           ExtantSpec <- gsub("Sp_", "", ExtantSpec)
-                           
-                           True_mat <- True_mat[rownames(True_mat) %in% ExtantSpec,
-                                                colnames(True_mat) %in% ExtantSpec]
-                           HMSC_mat <- HMSC_mat[rownames(HMSC_mat) %in% ExtantSpec,
-                                                colnames(HMSC_mat) %in% ExtantSpec]
-                           COOCCUR_mat <- COOCCUR_mat[rownames(COOCCUR_mat) %in% ExtantSpec,
-                                                      colnames(COOCCUR_mat) %in% ExtantSpec]
-                           
-                           # metrics
-                           mat_ls <- list(COOCCUR = COOCCUR_mat,
-                                          HMSC = HMSC_mat)
-                           
-                           do.call(rbind, lapply(names(mat_ls),
-                                                 function(y){
-                                                   data.frame(
-                                                     Values = c(
-                                                       # true positive associations; how many of the inferred positive associations are correctly identified as such?
-                                                       TP = sum((True_mat + mat_ls[[y]]) == 2, na.rm = TRUE)/
-                                                         sum(mat_ls[[y]] == 1, na.rm = TRUE), 
-                                                       # true negative associations; how many of the inferred negative associations are correctly identified as such?
-                                                       TN = sum((True_mat + mat_ls[[y]]) == -2, na.rm = TRUE)/
-                                                         sum(mat_ls[[y]] == -1, na.rm = TRUE), 
-                                                       # falsely inferred positive; how many of the inferred positive associations are incorrectly identified as such?
-                                                       FP = sum((True_mat == 0) + (mat_ls[[y]] == 1) == 2, na.rm = TRUE)/
-                                                         sum(mat_ls[[y]] == 1, na.rm = TRUE), 
-                                                       # falsely inferred negative; how many of the inferred negative associations are incorrectly identified as such?
-                                                       FN = sum((True_mat == 0) + (mat_ls[[y]] == -1) == 2, na.rm = TRUE)/
-                                                         sum(mat_ls[[y]] == -1, na.rm = TRUE),
-                                                       # true positive links which were not inferred; how many of the true positive associations were not inferred?
-                                                       MP = sum((True_mat == 1) + (mat_ls[[y]] == 0) == 2, na.rm = TRUE)/
-                                                         sum(True_mat == 1, na.rm = TRUE), 
-                                                       # true negative links which were not inferred; how many of the true negative associations were not inferred?
-                                                       MN = sum((True_mat == -1) + (mat_ls[[y]] == 0) == 2, na.rm = TRUE)/
-                                                         sum(True_mat == -1, na.rm = TRUE),
-                                                       # true absent links which were not inferred; how many of the true absent associations were not inferred?
-                                                       MA = sum((True_mat == 0) + (mat_ls[[y]] != 0) == 2, na.rm = TRUE)/
-                                                         sum(True_mat == 0, na.rm = TRUE),
-                                                       # true absent; how many of the inferred absent interactions are correctly identified as such?
-                                                       TA = sum((True_mat == 0) + (mat_ls[[y]] == 0) == 2, na.rm = TRUE)/
-                                                         sum(mat_ls[[y]] == 0, na.rm = TRUE),
-                                                       # false absent; how many of the inferred absent interactions are correctly identified as such?
-                                                       FA = sum((True_mat != 0) + (mat_ls[[y]] == 0) == 2, na.rm = TRUE)/
-                                                         sum(mat_ls[[y]] == 0, na.rm = TRUE)
-                                                     ),
-                                                     Metric = c("TP", "TN", "FP", "FN", "MP", "MN", "MA", "TA", "FA"),
-                                                     # Identifier
-                                                     Mode = y
-                                                   )
-                                                 }))
-                         })
-)
+ErrorRates_ls <- lapply(X = names(Detection_ls[[1]]), 
+       FUN = function(Realisation){
+         
+         ErrorRates_df <- do.call(rbind, 
+                                  pblapply(names(Detection_ls), FUN = function(SimName){
+                                    # SimName <- names(Detection_ls)[1]
+                                    # matrix extraction
+                                    x <- Detection_ls[[SimName]][[Realisation]]
+                                    True_mat <- x$Matrices$True
+                                    HMSC_mat <- x$Matrices$HMSC
+                                    COOCCUR_mat <- x$Matrices$COOCCUR
+                                    
+                                    ### limitting to species who did not go extinct in simulation
+                                    ExtantSpec <- unique(Inference_ls[[SimName]]$ID_df$Species)
+                                    ExtantSpec <- gsub("Sp_", "", ExtantSpec)
+                                    
+                                    True_mat <- True_mat[rownames(True_mat) %in% ExtantSpec,
+                                                         colnames(True_mat) %in% ExtantSpec]
+                                    HMSC_mat <- HMSC_mat[rownames(HMSC_mat) %in% ExtantSpec,
+                                                         colnames(HMSC_mat) %in% ExtantSpec]
+                                    COOCCUR_mat <- COOCCUR_mat[rownames(COOCCUR_mat) %in% ExtantSpec,
+                                                               colnames(COOCCUR_mat) %in% ExtantSpec]
+                                    
+                                    # metrics
+                                    mat_ls <- list(COOCCUR = COOCCUR_mat,
+                                                   HMSC = HMSC_mat)
+                                    
+                                    do.call(rbind, lapply(names(mat_ls),
+                                                          function(y){
+                                                            data.frame(
+                                                              Values = c(
+                                                                # true positive associations; how many of the inferred positive associations are correctly identified as such?
+                                                                TP = sum((True_mat + mat_ls[[y]]) == 2, na.rm = TRUE)/
+                                                                  sum(mat_ls[[y]] == 1, na.rm = TRUE), 
+                                                                # true negative associations; how many of the inferred negative associations are correctly identified as such?
+                                                                TN = sum((True_mat + mat_ls[[y]]) == -2, na.rm = TRUE)/
+                                                                  sum(mat_ls[[y]] == -1, na.rm = TRUE), 
+                                                                # falsely inferred positive; how many of the inferred positive associations are incorrectly identified as such?
+                                                                FP = sum((True_mat == 0) + (mat_ls[[y]] == 1) == 2, na.rm = TRUE)/
+                                                                  sum(mat_ls[[y]] == 1, na.rm = TRUE), 
+                                                                # falsely inferred negative; how many of the inferred negative associations are incorrectly identified as such?
+                                                                FN = sum((True_mat == 0) + (mat_ls[[y]] == -1) == 2, na.rm = TRUE)/
+                                                                  sum(mat_ls[[y]] == -1, na.rm = TRUE),
+                                                                # true positive links which were not inferred; how many of the true positive associations were not inferred?
+                                                                MP = 1-(sum((True_mat == 1) + (mat_ls[[y]] == 0) == 2, na.rm = TRUE)/
+                                                                  sum(True_mat == 1, na.rm = TRUE)), 
+                                                                # true negative links which were not inferred; how many of the true negative associations were not inferred?
+                                                                MN = 1-(sum((True_mat == -1) + (mat_ls[[y]] == 0) == 2, na.rm = TRUE)/
+                                                                  sum(True_mat == -1, na.rm = TRUE)),
+                                                                # true absent links which were not inferred; how many of the true absent associations were not inferred?
+                                                                MA = 1-(sum((True_mat == 0) + (mat_ls[[y]] != 0) == 2, na.rm = TRUE)/
+                                                                  sum(True_mat == 0, na.rm = TRUE)),
+                                                                # true absent; how many of the inferred absent interactions are correctly identified as such?
+                                                                TA = sum((True_mat == 0) + (mat_ls[[y]] == 0) == 2, na.rm = TRUE)/
+                                                                  sum(mat_ls[[y]] == 0, na.rm = TRUE),
+                                                                # false absent; how many of the inferred absent interactions are correctly identified as such?
+                                                                FA = sum((True_mat != 0) + (mat_ls[[y]] == 0) == 2, na.rm = TRUE)/
+                                                                  sum(mat_ls[[y]] == 0, na.rm = TRUE)
+                                                              ),
+                                                              Metric = c("TP", "TN", "FP", "FN", "MP", "MN", "MA", "TA", "FA"),
+                                                              # Identifier
+                                                              Approach = y
+                                                            )
+                                                          }))
+                                  })
+         )
+         
+         ErrorRates_df
+       })
+names(ErrorRates_ls) <- names(Detection_ls[[1]])
 
-ErrorRates_gg <- ggplot(ErrorRates_df, 
-                        aes(x = Values, 
-                            y = factor(Mode, levels = c("COOCCUR", "HMSC")))) + 
-  stat_halfeye() + 
-  facet_wrap(~factor(Metric, levels = c("TP", "FP", "MP", "TN", "FN", "MN", "TA", "FA", "MA")),
-             ncol = 3) + 
-  theme_bw() + labs(x = "Detection Rate [%]", y = "")
-ggsave(ErrorRates_gg, filename = file.path(Dir.Exports, "ErrorRates.png"), 
-       width = 42, height = 21, units = "cm")
+WritePlot <- lapply(names(ErrorRates_ls), FUN = function(Realisation){
+  
+  ErrorRates_df <- ErrorRates_ls[[Realisation]]
+  
+  ggplot(ErrorRates_df, 
+         aes(x = Values, fill = Approach)) + 
+    # geom_histogram(position = "identity", alpha = 0.5, bins = 1e2) + 
+    geom_density(position = "identity", alpha = 0.5, bins = 1e2) + 
+    facet_wrap(~ factor(Metric, levels = c("TP", "FP", "MP", "TN", "FN", "MN", "TA", "FA", "MA")),
+               ncol = 3, scales = "free") + 
+    scale_fill_viridis_d(option = "H") +
+    theme_bw() + labs(x = "Detection Rate [%]", y = "") + 
+    theme(legend.position = "top")
+  
+  ggsave(filename = file.path(Dir.Exports, paste0("Fig_ErrorRates_", Realisation, ".png")), 
+         width = 32, height = 20, units = "cm")
+  
+})
+
+
 
 # CONCEPT VISUALISATION ========================================================
 message("Conceptual Visualisation")
@@ -383,16 +480,16 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
     ## Initial Individual Creation
     n_individuals = 4e2,
     n_mode = "each", # or "total"
-    Env_range = c(0, 10),
+    Env_range = c(0, 5),
     Trait_sd = 1,
     ## Carrying Capacity Creation
-    k_range = c(200,200),
+    k_range = c(300,300),
     ## Simulation Parameters
     d0 = 0.4,
     b0 = 0.6,
     t_max = 10,
     t_inter = 0.1,
-    sd = 1,
+    sd = 2.5,
     migration = 0.2,
     Effect_Dis = 0.5,
     verbose = TRUE
@@ -446,10 +543,10 @@ leg <- get_legend(Final_gg + theme(legend.position = "bottom"))
 
 ### constellation plotting ----
 Input_gg <- plot_grid(plot_grid(Initial_gg + theme(legend.position = "none"), 
-                    Final_gg + theme(legend.position = "none"), 
-                    nrow = 1),
-          leg, rel_heights = c(1,0.1), ncol = 1)
-ggsave(Input_gg, filename = file.path(Dir.Exports, "SpatialInputs.png"), 
+                                Final_gg + theme(legend.position = "none"), 
+                                nrow = 1),
+                      leg, rel_heights = c(1,0.1), ncol = 1)
+ggsave(Input_gg, filename = file.path(Dir.Exports, "Fig_SpatialInputs.png"), 
        width = 30, height = 16, units = "cm")
 
 ### species-site matrices ----
@@ -518,10 +615,10 @@ for(i in loop_vec){
 }
 
 InputMatrices_gg <- plot_grid(plot_ls[[1]],
-          plot_grid(plotlist = plot_ls[-1], nrow = 1),
-          ncol = 1, rel_heights = c(3, 1.7), labels = c("A", "B")
-          )
-ggsave(InputMatrices_gg, filename = file.path(Dir.Exports, "InputMatrices.png"), 
+                              plot_grid(plotlist = plot_ls[-1], nrow = 1),
+                              ncol = 1, rel_heights = c(3, 1.7), labels = c("A", "B")
+)
+ggsave(InputMatrices_gg, filename = file.path(Dir.Exports, "Fig_InputMatrices.png"), 
        width = 36, height = 20, units = "cm")
 
 
@@ -536,13 +633,13 @@ Abund_time <- do.call(rbind, Abund_time)
 Abund_time$t <- as.numeric(Abund_time$t)
 colnames(Abund_time)[1:2] <- c("Species", "Abundance")
 Abund_time$Species <- factor(as.numeric(gsub(Abund_time$Species, 
-                       pattern = "Sp_", replacement = "")))
+                                             pattern = "Sp_", replacement = "")))
 
 AbundTime_gg <- ggplot(Abund_time, aes(x = t, y = Abundance, col = Species)) +
   geom_line(size = 1.5) + 
   scale_color_viridis_d() + 
   theme_bw()
-ggsave(AbundTime_gg, filename = file.path(Dir.Exports, "AbundanceTime.png"), 
+ggsave(AbundTime_gg, filename = file.path(Dir.Exports, "Fig_AbundanceTime.png"), 
        width = 30, height = 20, units = "cm")  
 
 ## Spatial Gradient ------------------------------------------------------------
@@ -564,7 +661,7 @@ Gradient_gg <- ggplot(gridmat, aes(x = x, y = y, fill = Phenotype)) +
                                 barheight = 15,
                                 title = "Optimal \n Phenotype")) + 
   theme_bw() + theme(plot.margin = unit(c(0,0,0,0), "cm"))
-ggsave(Gradient_gg, filename = file.path(Dir.Exports, "SpatialGradient.png"), 
+ggsave(Gradient_gg, filename = file.path(Dir.Exports, "Fig_SpatialGradient.png"), 
        width = 20, height = 22, units = "cm")  
 
 ## Network Inference -----------------------------------------------------------
@@ -654,6 +751,5 @@ InfMat_gg <- ggplot(edg_df2,
   theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
   scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
 
-ggsave(InfMat_gg, filename = file.path(Dir.Exports, "Matrix_Inferred.png"), 
+ggsave(InfMat_gg, filename = file.path(Dir.Exports, "Fig_Matrix_Inferred.png"), 
        width = 40, height = 22, units = "cm")  
-
