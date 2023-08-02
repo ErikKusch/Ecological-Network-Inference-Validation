@@ -218,7 +218,7 @@ SIM.Comp <- function(d0 = 0.4,
     t <- t + tadvance
     ### record data only if interval is met
     if(t - as.numeric(names(ID_ls)[length(ID_ls)]) >= t_inter){
-      if(verbose){message(t)}
+      # if(verbose){message(t)}
       ID_ls <- c(ID_ls, list(ID_df))
       names(ID_ls)[length(ID_ls)] <- t
       saveobj <- list(Call = call_info, Network = Network_igraph, K = k_vec, Simulation = ID_ls)
