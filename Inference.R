@@ -56,7 +56,7 @@ n_Grid <- 10
 message(paste0("thin = ",as.character(thin),"; samples = ",as.character(nSamples)))
 
 # DATA =====================================================================
-# Data_fs <- list.files(Dir.Data, pattern = ".RData")
+Data_fs <- list.files(Dir.Data, pattern = ".RData")
 # Data_fs <- Data_fs[unlist(lapply(strsplit(Data_fs, split = "_"), "[[", 2)) == 1]
 
 # INFERENCE FUNCTIONS ======================================================
