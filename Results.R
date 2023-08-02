@@ -49,7 +49,6 @@ OS_gg <- ggplot(Dissimilarities_df,
   stat_halfeye() + 
   facet_wrap(~j, scales = "free_x") + 
   theme_bw() + labs(y = "", x = "Link Dissimilarity")
-OS_gg
 ggsave(OS_gg, filename = file.path(Dir.Exports, "Fig_OS.png"), 
        width = 16, height = 8, units = "cm")
 
@@ -440,9 +439,7 @@ ErrorRates_ls <- lapply(X = names(Detection_ls[[1]]),
 names(ErrorRates_ls) <- names(Detection_ls[[1]])
 
 WritePlot <- lapply(names(ErrorRates_ls), FUN = function(Realisation){
-  
   ErrorRates_df <- ErrorRates_ls[[Realisation]]
-  
   ggplot(ErrorRates_df, 
          aes(x = Values, fill = Approach)) + 
     # geom_histogram(position = "identity", alpha = 0.5, bins = 1e2) + 
@@ -452,13 +449,10 @@ WritePlot <- lapply(names(ErrorRates_ls), FUN = function(Realisation){
     scale_fill_viridis_d(option = "H") +
     theme_bw() + labs(x = "Detection Rate [%]", y = "") + 
     theme(legend.position = "top")
-  
   ggsave(filename = file.path(Dir.Exports, paste0("Fig_ErrorRates_", Realisation, ".png")), 
          width = 32, height = 20, units = "cm")
   
 })
-
-
 
 # CONCEPT VISUALISATION ========================================================
 message("Conceptual Visualisation")
