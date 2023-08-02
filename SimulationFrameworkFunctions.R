@@ -163,7 +163,7 @@ SIM.Comp <- function(d0 = 0.4,
   pb <- txtProgressBar(min = 0, max = t_max, style = 3)
   ## simulation loop over time steps
   while(t < t_max){
-    if(verbose){print(t)}
+    # if(verbose){print(t)}
     ## vectors for storing birth and death probabilities for each individual
     birth_prob <- rep(b0, nrow(ID_df))
     death_prob <- ID_df$dt
