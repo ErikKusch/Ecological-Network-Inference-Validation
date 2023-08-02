@@ -47,7 +47,7 @@ doSNOW::registerDoSNOW(cl)
 
 ## running simulations
 message("Running Simulation Framework")
-for(Env_sd in c(1)){ # , 0.75, 2.5, 5, 10
+for(Env_sd in c(2.5)){ # , 0.75, 2.5, 5, 10
   print(paste("Data simulation env_sd =", Env_sd))
   RunName <- paste("Association", Env_sd, sep = "_")
   pb <- txtProgressBar(max = n_runs, style = 3)
