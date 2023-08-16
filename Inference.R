@@ -420,7 +420,8 @@ cl <- parallel::makeCluster(nCores) # for parallel pbapply functions
 parallel::clusterExport(cl,
                         varlist = c("Data_fs", "nSamples", "thin", "nWarmup", "nChains",
                                     "%nin%", "Dir.Data", "Dir.Models", "Dir.Exports",
-                                    "install.load.package", "package_vec", "n_Grid", "FUN.Inference"),
+                                    "install.load.package", "package_vec", "n_Grid", 
+                                    "FUN.Inference", "FUN_Matcomparison"),
                         envir = environment()
 )
 clusterpacks <- clusterCall(cl, function() sapply(package_vec, install.load.package))
