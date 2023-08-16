@@ -92,7 +92,8 @@ for(Env_sd in c(2.5)){ # , 0.75, 2.5, 5, 10
 
 ### lightening data load by retaining no intermediate simulation steps
 fs <- list.files(pattern = ".RData", Dir.Data, full.names = TRUE)
-reduce_ls <- pbsapply(fs, cl = cl, FUN = function(x){
+fsize <- sapply(fs, FUN = function(x){file.size(x)})
+reduce_ls <- pbsapply(fs[fsize > 2e7], cl = cl, FUN = function(x){
   load(x)
   Simulation_Output$Simulation <- Simulation_Output$Simulation[c(1,length(Simulation_Output$Simulation))]
   save(Simulation_Output, file = x)
