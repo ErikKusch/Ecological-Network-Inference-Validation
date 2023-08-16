@@ -615,7 +615,6 @@ InputMatrices_gg <- plot_grid(plot_ls[[1]],
 ggsave(InputMatrices_gg, filename = file.path(Dir.Concept, "Fig_InputMatrices.png"), 
        width = 36, height = 20, units = "cm")
 
-
 ## Abundance Through Time ------------------------------------------------------
 print("Abundance Visualisation through Time")
 Abund_time <- pblapply(names(Simulation_Output$Simulation), 
@@ -660,12 +659,12 @@ ggsave(Gradient_gg, filename = file.path(Dir.Concept, "Fig_SpatialGradient.png")
 
 ## Network Inference -----------------------------------------------------------
 print("Network Inference")
-source2 <- function(file, start, end, ...) {
-  file.lines <- scan(file, what=character(), skip=start-1, nlines=end-start+1, sep='\n')
-  file.lines.collapsed <- paste(file.lines, collapse='\n')
-  source(textConnection(file.lines.collapsed), ...)
-}
-source2("Inference.R", 62, 360)
+# source2 <- function(file, start, end, ...) {
+#   file.lines <- scan(file, what=character(), skip=start-1, nlines=end-start+1, sep='\n')
+#   file.lines.collapsed <- paste(file.lines, collapse='\n')
+#   source(textConnection(file.lines.collapsed), ...)
+# }
+# source2("Inference.R", 62, 360)
 
 models_ls <- FUN.Inference(Simulation_Output, 
                            Dir.Models = Dir.Concept,
@@ -731,6 +730,7 @@ net_mat <- as_adjacency_matrix(models_ls$Weighted[[Realisation]], attr = "weight
 net_mat[lower.tri(net_mat)] <- NA
 diag(net_mat) <- NA
 colnames(net_mat) <- rownames(net_mat) <- V(Simulation_Output$Network)
+True_mat <- net_mat
 edg_df1 <- melt(net_mat)
 colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
 TrueMatReal_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
@@ -762,9 +762,12 @@ if(length(E(models_ls$Informed$Graphs$HMSC)) != 0){
 net_mat[lower.tri(net_mat)] <- NA
 diag(net_mat) <- NA
 colnames(net_mat) <- rownames(net_mat) <- V(models_ls$Informed$Graphs$HMSC)
+HMSC_mat <- net_mat
 edg_df <- melt(net_mat)
 colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
 edg_df$Method <- "HMSC"
+HMSC_net <- graph_from_adjacency_matrix(net_mat, weighted = TRUE, mode = "undirected")
+V(HMSC_net)$name <- paste0("Sp_", V(HMSC_net)$name)
 edg_df2 <- edg_df
 
 print("COOCCUR network matrix")
@@ -773,9 +776,13 @@ net_mat <- as_adjacency_matrix(as.undirected(models_ls$COOCCUR$Graphs$COOCCUR), 
 net_mat[lower.tri(net_mat)] <- NA
 diag(net_mat) <- NA
 colnames(net_mat) <- rownames(net_mat) <- V(models_ls$COOCCUR$Graphs$COOCCUR)
+COOCCUR_mat <- net_mat
 edg_df <- melt(net_mat)
 colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
 edg_df$Method <- "COOCCUR"
+COOCCUR_net <- graph_from_adjacency_matrix(net_mat, weighted = TRUE, mode = "undirected")
+V(COOCCUR_net)$name <- paste0("Sp_", V(COOCCUR_net)$name)
+
 edg_df2 <- rbind(edg_df2, edg_df)
 # edg_df2$Strength <- as.numeric(edg_df2$Strength)
 edg_df2$Correct <- NA
@@ -803,3 +810,18 @@ InfMat_gg <- ggplot(edg_df2,
 
 ggsave(InfMat_gg, filename = file.path(Dir.Concept, "Fig_Matrix_Inferred.png"), 
        width = 40, height = 22, units = "cm")
+
+
+models_ls
+
+Dissimilarities_df <- rbind(models_ls$Informed$Dissimilarity,
+                            models_ls$COOCCUR$Dissimilarity)
+Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvNonReal", replacement = "Full True Network")
+Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvReal", replacement = "Realisable True Network")
+
+OS_gg <- ggplot(Dissimilarities_df[Dissimilarities_df$j == "Realisable True Network",], 
+                aes(y = Accuracy, x = factor(i, levels = c("COOCCUR", "HMSC")))) + 
+  geom_bar(stat = "identity") + 
+  # facet_wrap(~j, scales = "free_x") + 
+  theme_bw() + labs(x = "", y = "Inference Accuracy [%]")
+OS_gg
