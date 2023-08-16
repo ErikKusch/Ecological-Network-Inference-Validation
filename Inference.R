@@ -39,10 +39,10 @@ package_vec <- c(
 )
 sapply(package_vec, install.load.package)
 
-if("betalink" %in% rownames(installed.packages()) == FALSE){
-  install_version("betalink", version = "2.2.1", repos = "http://cran.us.r-project.org")
-}
-library(betalink)
+# if("betalink" %in% rownames(installed.packages()) == FALSE){
+#   install_version("betalink", version = "2.2.1", repos = "http://cran.us.r-project.org")
+# }
+# library(betalink)
 
 `%nin%` <- Negate(`%in%`)
 
@@ -54,6 +54,14 @@ nWarmup <- round(nSamples*0.3*thin, 0)
 nChains <- 4
 n_Grid <- 10
 message(paste0("thin = ",as.character(thin),"; samples = ",as.character(nSamples)))
+
+## Comparison Function +++++++++++++++++++++++++++++++++++++++++++++++++++++
+FUN_Matcomparison <- function(mat1, mat2){
+  eq <- mat1==mat2 # avoid to later compute this twice
+  # eq <- ifelse(eq, 0, mat2) # get the desired matrix
+  100-round(sum(!eq, na.rm = TRUE)/sum(!is.na(eq))*100, 2) # get the percentage of non equal values
+  #[1] 33.33
+}
 
 # DATA =====================================================================
 Data_fs <- list.files(Dir.Data, pattern = ".RData")
@@ -78,6 +86,11 @@ FUN.Inference <- function(Simulation_Output = NULL,
   colnames(Network_Realised) <- rownames(Network_Realised) <- V(Network_Weighted)$names
   Network_Realised <- Network_Realised[colnames(Network_Realised) %in% unique(ID_df$Species),
                    colnames(Network_Realised) %in% unique(ID_df$Species)]
+  NonReal_mat <- Network_Realised
+  diag(NonReal_mat) <- NA
+  if(!is.directed(Simulation_Output$Network)){
+    NonReal_mat[lower.tri(NonReal_mat) ] <- NA
+  }
   
   ## Network of only survived species till end of simulation
   Network_SurvNonReal <- graph_from_adjacency_matrix(Network_Realised, mode = mode, weighted = TRUE)
@@ -96,7 +109,13 @@ FUN.Inference <- function(Simulation_Output = NULL,
   TraitDiff_mat <- SPTrait_mat-SPTraitSD_mat
   
   # limitting to realised interactions
+  Simulation_Output$Call$sd <- 2.5 # hard-coded for now
   Network_Realised[(TraitDiff_mat) > Simulation_Output$Call$sd+Simulation_Output$Call$Effect_Dis] <- 0 # anything greater apart in enviro pref than the interaction window (0.5) + environmental sd cannot be realised
+  Real_mat <- Network_Realised
+  diag(Real_mat) <- NA
+  if(!is.directed(Simulation_Output$Network)){
+    Real_mat[lower.tri(Real_mat) ] <- NA
+  }
   Network_SurvReal <- igraph::graph_from_adjacency_matrix(adjmatrix = Network_Realised,
                                                       mode = mode,
                                                       weighted = TRUE,
@@ -286,14 +305,32 @@ FUN.Inference <- function(Simulation_Output = NULL,
       HMSC_ig <- make_empty_graph(n = length(Spec_vec))
       HMSC_ig <- set.vertex.attribute(HMSC_ig, "names", value = Spec_vec)
     }
-    
     # V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
     # E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
     
+    if(length(E(HMSC_ig)) != 0){
+      HMSC_ig <- permute(as.undirected(HMSC_ig), match(V(HMSC_ig)$name, colnames(Real_mat)))
+      net_mat <- as_adjacency_matrix(HMSC_ig, attr = "weight",
+                                     type = "upper", sparse = FALSE)
+    }else{
+      net_mat <- matrix(rep(0, length = length(V(HMSC_ig))^2), ncol = length(V(HMSC_ig)))
+      colnames(net_mat) <- rownames(net_mat) <- sort(V(HMSC_ig)$name)
+    }
+    net_mat[lower.tri(net_mat)] <- NA
+    diag(net_mat) <- NA
+    colnames(net_mat) <- rownames(net_mat) <- V(HMSC_ig)$name
+    HMSC_mat <- net_mat
+    
+    betadiv <- data.frame(i = c("HMSC", "HMSC"),
+                          j = c("SurvNonReal", "SurvReal"),
+                          Accuracy = c(FUN_Matcomparison(mat1 = sign(NonReal_mat), mat2 = HMSC_mat),
+                                       FUN_Matcomparison(mat1 = sign(Real_mat), mat2 = HMSC_mat))
+                          )
+  
     Graphs_ls <- list(HMSC = HMSC_ig, 
                       SurvNonReal = Network_SurvNonReal,
                       SurvReal = Network_SurvReal)
-    betadiv <- network_betadiversity(N = Graphs_ls)[-3,]
+    
     
     ### Export ----
     End_t <- Sys.time()
@@ -339,10 +376,26 @@ FUN.Inference <- function(Simulation_Output = NULL,
   
   # V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
   # E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
+  COOCCUR_ig <- permute(as.undirected(COOCCUR_ig), match(V(COOCCUR_ig)$name, colnames(Real_mat)))
+
+  net_mat <- as_adjacency_matrix(as.undirected(COOCCUR_ig), attr = "weight",
+                                 type = "upper", sparse = FALSE)
+  net_mat[lower.tri(net_mat)] <- NA
+  diag(net_mat) <- NA
+  colnames(net_mat) <- rownames(net_mat) <- V(COOCCUR_ig)$name
+  COOCCUR_mat <- net_mat
+  
   Graphs_ls <- list(COOCCUR = COOCCUR_ig, 
                     SurvNonReal = Network_SurvNonReal,
                     SurvReal = Network_SurvReal)
-  betadiv <- network_betadiversity(N = Graphs_ls)[-3, ]
+ 
+  # betadiv <- network_betadiversity(N = Graphs_ls)[-3, ]
+  
+  betadiv <- data.frame(i = c("COOCCUR", "COOCCUR"),
+                        j = c("SurvNonReal", "SurvReal"),
+                        Accuracy = c(FUN_Matcomparison(mat1 = sign(NonReal_mat), mat2 = COOCCUR_mat),
+                                     FUN_Matcomparison(mat1 = sign(Real_mat), mat2 = COOCCUR_mat))
+  )
   
   models_ls$COOCCUR <- list(COOCCUR_associations = Interac_df,
                             Graphs = Graphs_ls,
@@ -388,13 +441,12 @@ Inference_ls <- pblapply(1:length(Data_fs),
                                models_ls <- FUN.Inference(Simulation_Output =  Simulation_Output,
                                                           Dir.Exports = Dir.Exports,
                                                           Dir.Models = Dir.Models,
-                                                          Treatment_Iter = Treatment_Iter) 
+                                                          Treatment_Iter = Treatment_Iter,
+                                                          ModelSave = TRUE) 
                              }
                            }
-                           
                            # reporting back to top
                            models_ls
-                           
                          })
 names(Inference_ls) <- Data_fs
 # stop("Remove NA entries from Inference_ls - these are instances were the simulation resulted in extinction of all species")
