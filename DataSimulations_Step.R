@@ -26,7 +26,8 @@ package_vec <- c(
   "parallel",
   "doParallel",
   "foreach",
-  "doSNOW"
+  "doSNOW",
+  "pbapply"
 )
 sapply(package_vec, install.load.package)
 
@@ -41,7 +42,7 @@ n_runs <- 1e3
 ## cluster
 message("Registering Clusters")
 ncores <- ifelse(parallel::detectCores() > 25, 25, parallel::detectCores())
-cl <- parallel::makeCluster(ncores)
+cl <- parallel::makeCluster(ncores, outfile = "Log.txt")
 doSNOW::registerDoSNOW(cl)
 # doParallel::registerDoParallel(cl)
 
@@ -89,5 +90,13 @@ for(Env_sd in c(2.5)){ # , 0.75, 2.5, 5, 10
   close(pb)
 }
 
+### lightening data load by retaining no intermediate simulation steps
+fs <- list.files(pattern = ".RData", Dir.Data, full.names = TRUE)
+reduce_ls <- pbsapply(fs, cl = cl, FUN = function(x){
+  load(x)
+  Simulation_Output$Simulation <- Simulation_Output$Simulation[c(1,length(Simulation_Output$Simulation))]
+  save(Simulation_Output, file = x)
+})
+
 ## closing cluster
-stopCluster(cl) 
+stopCluster(cl)
