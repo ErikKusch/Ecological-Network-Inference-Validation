@@ -10,9 +10,16 @@
 
 # PREAMBLE =====================================================================
 source("Inference.R")
+# Inference_ls <- pblapply(
+#   list.files(Dir.Exports, pattern = "Association_.*.RData", full.names = TRUE),
+#   FUN = function(x){
+#     load(x)
+#     models_ls
+#   })
+# names(Inference_ls) <- list.files(Dir.Exports, pattern = "Association_.*.RData")
 # OneSD <- unlist(lapply(strsplit(names(Inference_ls), split = "_"), "[[", 2)) == 1
 # Inference_ls <- Inference_ls[OneSD]
-package_vec <- c(package_vec, "brms", "rethinking", "reshape2", "cowplot", "scales")
+package_vec <- c(package_vec, "brms", "rethinking", "reshape2", "cowplot", "scales", "betalink")
 sapply(package_vec, install.load.package)
 Dir.Base <- getwd() # read out the project directory
 Dir.Concept <- file.path(Dir.Base, "Concept")
@@ -45,10 +52,10 @@ Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvNonReal", repl
 Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvReal", replacement = "Realisable True Network")
 
 OS_gg <- ggplot(Dissimilarities_df, 
-                aes(x = OS, y = factor(i, levels = c("COOCCUR", "HMSC")))) + 
+                aes(x = Accuracy, y = factor(i, levels = c("COOCCUR", "HMSC")))) + 
   stat_halfeye() + 
   facet_wrap(~j, scales = "free_x") + 
-  theme_bw() + labs(y = "", x = "Link Dissimilarity")
+  theme_bw() + labs(y = "", x = "Inference Accuracy")
 ggsave(OS_gg, filename = file.path(Dir.Exports, "Fig_OS.png"), 
        width = 16, height = 8, units = "cm")
 
@@ -278,8 +285,8 @@ DetectionModels_df <- lapply(X = names(Detection_ls[[1]]),
                                                Negative = Bayes_Model_Negative,
                                                Absent = Bayes_Model_Absent
                                )
-                               ProbMat <- expand.grid(seq(from = 0, to = 1, by = 0.05),
-                                                      seq(from = 0, to = 10, by = 0.5))
+                               ProbMat <- expand.grid(seq(from = 0, to = 10, by = 0.05),
+                                                      seq(from = 0, to = 3, by = 0.5))
                                colnames(ProbMat) <- c("Magnitude", "EnvDiff")
                                
                                for(k in names(Plot_ls)){
