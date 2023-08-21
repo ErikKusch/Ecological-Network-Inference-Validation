@@ -71,12 +71,13 @@ Data_fs <- list.files(Dir.Data, pattern = ".RData")
 FUN.Inference <- function(Simulation_Output = NULL, 
                           Dir.Exports = NULL,
                           Dir.Models = NULL,
-                          ModelSave = FALSE,
+                          ModelSave = TRUE,
                           Treatment_Iter = NULL,
                           Cores = 1){
   ### DATA READOUT ####
   ## Simulated individuals
   ID_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
+  ID2_df <- Simulation_Output$Simulation[[(length(Simulation_Output$Simulation)-1)]]
   
   ## Networks
   V(Simulation_Output$Network)$names <- paste0("Sp_", V(Simulation_Output$Network))
@@ -99,7 +100,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   
   ## Network of only survived species till end of simulation and within reach of each other to actually interact
   # Figuring out trait differences between potentially interacting species
-  SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean)
+  SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean) # might want to consider whether to delimit this by initialising or final trait values
   SPTrait_df$SD <- aggregate(ID_df, Trait ~ Species, FUN = sd)$Trait
   SPTrait_df <- SPTrait_df[match(colnames(Network_Realised), SPTrait_df$Species), ]
   SPTrait_mat <- abs(outer(SPTrait_df$Trait, SPTrait_df$Trait, '-'))
@@ -123,42 +124,60 @@ FUN.Inference <- function(Simulation_Output = NULL,
   Network_WeightedReal <- Network_SurvReal
   E(Network_SurvReal)$weight <- ifelse(E(Network_SurvReal)$weight > 0, 1, -1)
   
+  # True Matrices
+  mat_ls <- list(NonRealised = NonReal_mat,
+                 Realised = Real_mat)
+  
   ### DATA PREPRATION ####
   # Y: Site X Species matrix
   ## make locational data into site X species matrix
-  GridCoords <- seq(from = eval(Simulation_Output$Call[["Env_range"]])[1], 
-                    to = eval(Simulation_Output$Call[["Env_range"]])[2], 
-                    length = n_Grid+1)[-(n_Grid+1)]
-  grids_df <- expand.grid(GridCoords, GridCoords)
-  colnames(grids_df) <- c("X", "Y")
-  # grids_df <- data.frame(X = GridCoords,
-  #                        Y = 0)
-  grids_df$GridID <- 1:nrow(grids_df)
-  GridsID_vec <- lapply(1:nrow(ID_df),
-                        FUN = function(x){
-                          Xs <- which(ID_df[x, "X"] >= grids_df$X)
-                          Ys <- which(ID_df[x, "Y"] >= grids_df$Y)
-                          Xs[tail(which(Xs %in% Ys), 1)]
-                        }
-  )
-  grids_df$X <- grids_df$X+diff(GridCoords)[1]/2
-  grids_df$Y <- grids_df$Y+diff(GridCoords)[1]/2
-  GridsID <- unlist(GridsID_vec)
-  Pop_dfBASE <- data.frame(
-    matrix(0, nrow = nrow(grids_df),
-           ncol = length(unique(ID_df$Species))+1
+  Fun.Gridding <- function(from = eval(Simulation_Output$Call[["Env_range"]])[1], 
+                           to = eval(Simulation_Output$Call[["Env_range"]])[2],
+                           n_Grid2 = n_Grid,
+                           ID_df = NULL){
+    GridCoords <- seq(from = from, 
+                      to = to, 
+                      length = n_Grid2+1)[-(n_Grid2+1)]
+    grids_df <- expand.grid(GridCoords, GridCoords)
+    colnames(grids_df) <- c("X", "Y")
+    # grids_df <- data.frame(X = GridCoords,
+    #                        Y = 0)
+    grids_df$GridID <- 1:nrow(grids_df)
+    GridsID_vec <- lapply(1:nrow(ID_df),
+                          FUN = function(x){
+                            Xs <- which(ID_df[x, "X"] >= grids_df$X)
+                            Ys <- which(ID_df[x, "Y"] >= grids_df$Y)
+                            Xs[tail(which(Xs %in% Ys), 1)]
+                          }
     )
-  )
-  colnames(Pop_dfBASE) <- c("GridsID", sort(unique(ID_df$Species)))
-  Pop_dfBASE$GridsID <- grids_df$GridID
-  #### observed frequencies
-  Poptab <- as.data.frame.matrix(table(GridsID, ID_df$Species))
-  Poptab$GridsID <- as.numeric(rownames(Poptab))
-  #### matching observed with base frame
-  PoptabStore <- Pop_dfBASE
-  PoptabStore[match(Poptab$GridsID, PoptabStore$GridsID), -1] <- Poptab[,-ncol(Poptab)]
+    grids_df$X <- grids_df$X+diff(GridCoords)[1]/2
+    grids_df$Y <- grids_df$Y+diff(GridCoords)[1]/2
+    GridsID <- unlist(GridsID_vec)
+    Pop_dfBASE <- data.frame(
+      matrix(0, nrow = nrow(grids_df),
+             ncol = length(unique(ID_df$Species))+1
+      )
+    )
+    colnames(Pop_dfBASE) <- c("GridsID", sort(unique(ID_df$Species)))
+    Pop_dfBASE$GridsID <- grids_df$GridID
+    #### observed frequencies
+    Poptab <- as.data.frame.matrix(table(GridsID, ID_df$Species))
+    Poptab$GridsID <- as.numeric(rownames(Poptab))
+    #### matching observed with base frame
+    PoptabStore <- Pop_dfBASE
+    PoptabStore[match(Poptab$GridsID, PoptabStore$GridsID), -1] <- Poptab[,-ncol(Poptab)]
+    PoptabStore <- PoptabStore[,-1] # rownames are grid IDs
+    PoptabStore
+  }
+  Abundances <- Fun.Gridding(ID_df = ID_df)
+  Abundances2 <- Fun.Gridding(ID_df = ID2_df)
+  Performances <- Abundances-Abundances2
+  Occurrences <- sign(Abundances)
+  
   ### storing site X species matrix
-  Y <- PoptabStore[,-1] # rownames are grid IDs
+  Y <- list(Occurrence = Occurrences,
+            Abundance = Abundances,
+            Performance = Performances)
   
   # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
   X <- data.frame(
@@ -173,6 +192,8 @@ FUN.Inference <- function(Simulation_Output = NULL,
     Environment = rep(1, nrow(grids_df))
   )
   rownames(XNaive) <- grids_df$GridID
+  X <- list(Naive = XNaive,
+            Informed = X)
   
   # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
   S <- data.frame(GridID = grids_df$GridID)
@@ -181,16 +202,16 @@ FUN.Inference <- function(Simulation_Output = NULL,
   Traits <- aggregate(Trait ~ Species, data = ID_df, FUN = mean)
   Traits_vec <- Traits$Trait
   names(Traits_vec) <- Traits$Species
-  Tr <- data.frame(Trait = Traits_vec[match(colnames(Y), names(Traits_vec))])
+  Tr <- data.frame(Trait = Traits_vec[match(colnames(Y$Occurrence), names(Traits_vec))])
   
   # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL  
   P <- NULL 
   
   ### DATA CHECKS ####
-  if(!is.numeric(as.matrix(Y)) || !is.logical(as.matrix(Y)) && !is.finite(sum(Y, na.rm=TRUE))){
-    stop("Species data should be numeric and have finite values")}
+  test_ls <- lapply(Y, FUN = function(Y){if(!is.numeric(as.matrix(Y)) || !is.logical(as.matrix(Y)) && !is.finite(sum(Y, na.rm=TRUE))){
+    stop("Species data should be numeric and have finite values")}})
+  test_ls <- lapply(X, FUN = function(X){if(any(is.na(X))){stop("Covariate data has NA values - not allowed for")}})
   if(any(is.na(S))){stop("study design has NA values - not allowed for")}
-  if(any(is.na(X))){stop("Covariate data has NA values - not allowed for")}
   if(any(is.na(P))){stop("P has NA values - not allowed for")}
   
   ### Model Specification ----
@@ -208,31 +229,33 @@ FUN.Inference <- function(Simulation_Output = NULL,
   rL.coords <- HmscRandomLevel(sData=xy)
   
   ## Models
-  InformedMod <- Hmsc(Y = Y, XData = X,  XFormula = XFormula,
-                      TrData = Tr, TrFormula = TrFormula,
-                      distr = "poisson",
-                      studyDesign = studyDesign,
-                      ranLevels = {list("GridID" = rL.site)}
-  )
-  NaiveMod <- Hmsc(Y = Y, XData = XNaive,  XFormula = ~1,
-                   TrData = NULL, TrFormula = NULL,
-                   distr = "poisson",
-                   studyDesign = studyDesign,
-                   ranLevels = {list("GridID" = rL.site)}
-  )
-  models_ls <- list(InformedMod
-                    # ,
-                    # NaiveMod
-                    )
-  names(models_ls) <- c("Informed"
-                        # ,"Naive"
-                        )
+  models_ls <- lapply(names(Y), FUN = function(z){
+    InformedMod <- Hmsc(Y = Y[[z]], XData = X$Informed,  XFormula = XFormula,
+                        TrData = Tr, TrFormula = TrFormula,
+                        distr = "poisson",
+                        studyDesign = studyDesign,
+                        ranLevels = {list("GridID" = rL.site)}
+    )
+    NaiveMod <- Hmsc(Y = Y[[z]], XData = X$Naive,  XFormula = ~1,
+                     TrData = NULL, TrFormula = NULL,
+                     distr = "poisson",
+                     studyDesign = studyDesign,
+                     ranLevels = {list("GridID" = rL.site)}
+    )
+    models_ls <- list(InformedMod,NaiveMod)
+    names(models_ls) <- c("Informed","Naive")
+    models_ls
+  })
+  names(models_ls) <- names(Y)
+  models_ls <- unlist(models_ls, recursive = FALSE)
   
   ### Modelling and Dissimilarity Computation ----
   # message("Modelling")
+  HMSCmat_ls <- as.list(rep(NA, length(models_ls)))
+  names(HMSCmat_ls) <- names(models_ls)
   for(Model_Iter in 1:length(models_ls)){
     Start_t <- Sys.time()
-    print(Model_Iter)
+    print(names(models_ls)[Model_Iter])
     hmsc_model <- models_ls[[Model_Iter]]
     
     ModelPath <- file.path(Dir.Models, 
@@ -248,9 +271,9 @@ FUN.Inference <- function(Simulation_Output = NULL,
                                nParallel = Cores
                                # nChains
       )
-      if(ModelSave){save(hmsc_model, file = ModelPath)}
+      OmegaCor <- computeAssociations(hmsc_model)
+      if(ModelSave){save(OmegaCor, file = ModelPath)}
     }
-    OmegaCor <- computeAssociations(hmsc_model)
     supportLevel <- 0.95
     me <- as.data.frame(OmegaCor[[1]]$mean)
     me <- cbind(hmsc_model$spNames,me)
@@ -320,24 +343,22 @@ FUN.Inference <- function(Simulation_Output = NULL,
     diag(net_mat) <- NA
     colnames(net_mat) <- rownames(net_mat) <- V(HMSC_ig)$name
     HMSC_mat <- net_mat
+    HMSCmat_ls[[Model_Iter]] <- HMSC_mat
     
-    betadiv <- data.frame(i = c("HMSC", "HMSC"),
+    betadiv <- data.frame(i = rep(names(models_ls)[Model_Iter], 2),
                           j = c("SurvNonReal", "SurvReal"),
                           Accuracy = c(FUN_Matcomparison(mat1 = sign(NonReal_mat), mat2 = HMSC_mat),
                                        FUN_Matcomparison(mat1 = sign(Real_mat), mat2 = HMSC_mat))
                           )
   
-    Graphs_ls <- list(HMSC = HMSC_ig, 
-                      SurvNonReal = Network_SurvNonReal,
-                      SurvReal = Network_SurvReal)
-    
+    Graph <- HMSC_ig
     
     ### Export ----
     End_t <- Sys.time()
     models_ls[[Model_Iter]] <- list(
       # HMSC_model = hmsc_model,
       HMSC_associations = Interactions_HMSC,
-      Graphs = Graphs_ls,
+      Graph = Graph,
       Dissimilarity = betadiv,
       Duration = End_t - Start_t,
       grids = n_Grid
@@ -345,8 +366,8 @@ FUN.Inference <- function(Simulation_Output = NULL,
     print(models_ls[[Model_Iter]]$Duration)
   } # model loop
   
-  ## COCCUR
-  mat_Iter <- Y
+  ## COOCCUR
+  mat_Iter <- Occurrences
   mat_Iter[mat_Iter > 0] <- 1
   model_coccurr <- cooccur(mat = t(mat_Iter), type = "spp_site", 
                            thresh = FALSE, spp_names = TRUE)
@@ -385,9 +406,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   colnames(net_mat) <- rownames(net_mat) <- V(COOCCUR_ig)$name
   COOCCUR_mat <- net_mat
   
-  Graphs_ls <- list(COOCCUR = COOCCUR_ig, 
-                    SurvNonReal = Network_SurvNonReal,
-                    SurvReal = Network_SurvReal)
+  Graph <- COOCCUR_ig
  
   # betadiv <- network_betadiversity(N = Graphs_ls)[-3, ]
   
@@ -403,7 +422,11 @@ FUN.Inference <- function(Simulation_Output = NULL,
   )
   
   ## FINAL OUTPUT
-  # models_ls$TrueNetwork <- Network_Weighted
+  models_ls$mats <- list(True = mat_ls,
+                         HMSC = HMSCmat_ls,
+                         COOCCUR = COOCCUR_mat)
+  models_ls$Graphs <- list(SurvNonReal = Network_SurvNonReal,
+                           SurvReal = Network_SurvReal)
   models_ls$ID_df <- ID_df
   models_ls$Weighted <- list(NonReal = Network_Weighted,
                              Real = Network_WeightedReal)
@@ -415,7 +438,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
 message("############ INFERENCE & NETWORK DISSIMILARITY COMPUTATION")
 
 print("Registering Cluster")
-nCores <- ifelse(parallel::detectCores()>25, 25, parallel::detectCores())
+nCores <- ifelse(parallel::detectCores()>50, 50, parallel::detectCores())
 cl <- parallel::makeCluster(nCores) # for parallel pbapply functions
 parallel::clusterExport(cl,
                         varlist = c("Data_fs", "nSamples", "thin", "nWarmup", "nChains",
