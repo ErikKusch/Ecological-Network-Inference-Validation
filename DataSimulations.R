@@ -41,7 +41,7 @@ n_runs <- 1e3
 
 ## cluster
 message("Registering Clusters")
-ncores <- ifelse(parallel::detectCores() > 25, 25, parallel::detectCores())
+ncores <- ifelse(parallel::detectCores() > 50, 50, parallel::detectCores())
 cl <- parallel::makeCluster(ncores, outfile = "Log.txt")
 doSNOW::registerDoSNOW(cl)
 # doParallel::registerDoParallel(cl)
@@ -95,7 +95,11 @@ fs <- list.files(pattern = ".RData", Dir.Data, full.names = TRUE)
 fsize <- sapply(fs, FUN = function(x){file.size(x)})
 reduce_ls <- pbsapply(fs[fsize > 2e7], cl = cl, FUN = function(x){
   load(x)
-  Simulation_Output$Simulation <- Simulation_Output$Simulation[c(1,length(Simulation_Output$Simulation))]
+  Simulation_Output$Simulation <- Simulation_Output$Simulation[c(1, 
+                                                                 (length(Simulation_Output$Simulation)-1), 
+                                                                 length(Simulation_Output$Simulation)
+                                                                 )
+                                                               ]
   save(Simulation_Output, file = x)
 })
 
