@@ -167,10 +167,11 @@ FUN.Inference <- function(Simulation_Output = NULL,
     PoptabStore <- Pop_dfBASE
     PoptabStore[match(Poptab$GridsID, PoptabStore$GridsID), -1] <- Poptab[,-ncol(Poptab)]
     PoptabStore <- PoptabStore[,-1] # rownames are grid IDs
-    PoptabStore
+    list(PoptabStore, grids_df)
   }
-  Abundances <- Fun.Gridding(ID_df = ID_df)
-  Abundances2 <- Fun.Gridding(ID_df = ID2_df)
+  grids_df <- Fun.Gridding(ID_df = ID_df)[[2]]
+  Abundances <- Fun.Gridding(ID_df = ID_df)[[1]]
+  Abundances2 <- Fun.Gridding(ID_df = ID2_df)[[1]]
   Performances <- Abundances-Abundances2
   Occurrences <- sign(Abundances)
   
@@ -417,7 +418,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   )
   
   models_ls$COOCCUR <- list(COOCCUR_associations = Interac_df,
-                            Graphs = Graphs_ls,
+                            Graph = Graph,
                             Dissimilarity = betadiv
   )
   

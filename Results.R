@@ -19,7 +19,8 @@ source("Inference.R")
 # names(Inference_ls) <- list.files(Dir.Exports, pattern = "Association_.*.RData")
 # OneSD <- unlist(lapply(strsplit(names(Inference_ls), split = "_"), "[[", 2)) == 1
 # Inference_ls <- Inference_ls[OneSD]
-package_vec <- c(package_vec, "brms", "rethinking", "reshape2", "cowplot", "scales", "betalink")
+package_vec <- c(package_vec, "brms", "rethinking", "reshape2", 
+                 "cowplot", "scales", "ggnewscale")
 sapply(package_vec, install.load.package)
 Dir.Base <- getwd() # read out the project directory
 Dir.Concept <- file.path(Dir.Base, "Concept")
@@ -28,14 +29,75 @@ CreateDir <- sapply(Dirs, function(x) if(!dir.exists(x)) dir.create(x))
 
 # INFERRED VS. INFERRED ========================================================
 InfComp <- pblapply(Inference_ls, FUN = function(Sim){
-  as.data.frame(betalink(Sim$Informed$Graphs$HMSC, Sim$COOCCUR$Graphs$COOCCUR))
+  mats <- Sim$mats$HMSC
+  mats$COOCCUR <- Sim$mats$COOCCUR
+  comp_df <- expand.grid(names(mats), names(mats))
+  comp_df$Difference <- apply(comp_df, MARGIN = 1, FUN = function(z){
+    FUN_Matcomparison(mats[[z[1]]], mats[[z[2]]])
+  })
+  comp_df
 })
 InfComp_df <- as.data.frame(do.call(rbind, InfComp))
 
-ggplot(data = InfComp_df, aes(x = OS)) + 
-  stat_halfeye() + 
+cases <- as.character(unique(InfComp_df$Var1))
+cases <- c("COOCCUR", rev(cases[startsWith(cases, "O")]), 
+           rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")]))
+
+InfComp_df$Var1 <- factor(InfComp_df$Var1, levels = cases)
+InfComp_df$Var2 <- factor(InfComp_df$Var2, levels = cases)
+
+mean_df <- aggregate(Difference ~ Var1 + Var2, InfComp_df, FUN = mean)
+nums <- nrow(mean_df)
+names <- levels(mean_df$Var1)
+mean_df <- reshape(mean_df, idvar = "Var1", timevar = "Var2", direction = "wide")[,-1]
+colnames(mean_df) <- rownames(mean_df) <- names
+# mean_df <- mean_df[match(rownames(mean_df), cases), match(colnames(mean_df), rev(cases))]
+diag(mean_df) <- NA
+mean_df[lower.tri(mean_df)] <- NA
+
+sd_df <- aggregate(Difference ~ Var1 + Var2, InfComp_df, FUN = sd)
+names <- levels(sd_df$Var1)
+sd_df <- reshape(sd_df, idvar = "Var1", timevar = "Var2", direction = "wide")[,-1]
+colnames(sd_df) <- rownames(sd_df) <- names
+diag(sd_df) <- NA
+sd_df[upper.tri(sd_df)] <- NA
+
+plot_df <- rbind(as.data.frame(as.table(as.matrix(mean_df))),
+                 as.data.frame(as.table(as.matrix(sd_df)))
+                 )
+plot_df$metric <- c(rep("Mean", nums), rep("SD", nums))
+
+plot_df$Var1 <- gsub(as.character(plot_df$Var1), pattern = "Occurrence.", replacement = "[O]")
+plot_df$Var1 <- gsub(as.character(plot_df$Var1), pattern = "Abundance.", replacement = "[A]")
+plot_df$Var1 <- gsub(as.character(plot_df$Var1), pattern = "Performance.", replacement = "[P]")
+plot_df$Var1 <- gsub(as.character(plot_df$Var1), pattern = "Informed", replacement = "Clim")
+plot_df$Var1 <- gsub(as.character(plot_df$Var1), pattern = "Naive", replacement = "")
+
+plot_df$Var2 <- gsub(as.character(plot_df$Var2), pattern = "Occurrence.", replacement = "[O]")
+plot_df$Var2 <- gsub(as.character(plot_df$Var2), pattern = "Abundance.", replacement = "[A]")
+plot_df$Var2 <- gsub(as.character(plot_df$Var2), pattern = "Performance.", replacement = "[P]")
+plot_df$Var2 <- gsub(as.character(plot_df$Var2), pattern = "Informed", replacement = "Clim")
+plot_df$Var2 <- gsub(as.character(plot_df$Var2), pattern = "Naive", replacement = "")
+
+cases <- gsub(as.character(cases), pattern = "Occurrence.", replacement = "[O]")
+cases <- gsub(as.character(cases), pattern = "Abundance.", replacement = "[A]")
+cases <- gsub(as.character(cases), pattern = "Performance.", replacement = "[P]")
+cases <- gsub(as.character(cases), pattern = "Informed", replacement = "Clim")
+cases <- gsub(as.character(cases), pattern = "Naive", replacement = "")
+
+ggplot(mapping = aes(x = factor(Var1, levels = cases), y = factor(Var2, levels = cases))) +
+  geom_tile(data = plot_df[plot_df$metric == "Mean",], aes(fill = Freq)) +
+  scale_fill_viridis_c(option = "E", na.value="transparent", name = "Mean", position = "left") +
+  # scale_fill_gradient(low = "darkred", high = "forestgreen", na.value="transparent", 
+  #                     name = "Mean", position = "left") +
+  new_scale_fill() +
+  geom_tile(data = plot_df[plot_df$metric == "SD",], aes(fill = Freq)) +
+  # scale_fill_gradient(low = "beige", high = "darkblue", na.value="transparent", 
+  #                     name = "SD", position = "right") + 
+  scale_fill_viridis_c(option = "B", na.value="transparent", name = "SD", position = "right") +
   theme_bw() + 
-  labs(x = "Network Dissimilarity", y = "")
+  labs(x = "", y = "", title = "Inference Similarity")
+
 ggsave(filename = file.path(Dir.Exports, "Fig_InfVInf.png"), 
        width = 16, height = 9, units = "cm")
 
@@ -43,23 +105,37 @@ ggsave(filename = file.path(Dir.Exports, "Fig_InfVInf.png"),
 message("Comparison of Dissimilarities")
 Dissimilarities_df <- do.call(rbind, 
                               pblapply(Inference_ls, FUN = function(x){
-                                HMSC = x$Informed$Dissimilarity
-                                COOCCUR = x$COOCCUR$Dissimilarity
-                                rbind(COOCCUR, HMSC)
+                                binding_df <- do.call(rbind, lapply(x, "[[", "Dissimilarity"))
+                                rownames(binding_df) <- c()
+                                binding_df
                               })
 )
 Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvNonReal", replacement = "Full True Network")
 Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvReal", replacement = "Realisable True Network")
 
-OS_gg <- ggplot(Dissimilarities_df, 
-                aes(x = Accuracy, y = factor(i, levels = c("COOCCUR", "HMSC")))) + 
-  stat_halfeye() + 
+# cases <- unique(Dissimilarities_df$i)
+# cases <- rev(c("COOCCUR", rev(cases[startsWith(cases, "O")]), 
+#   rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")])))
+
+Dissimilarities_df$i <- gsub(as.character(Dissimilarities_df$i), pattern = "Occurrence.", replacement = "[O]")
+Dissimilarities_df$i <- gsub(as.character(Dissimilarities_df$i), pattern = "Abundance.", replacement = "[A]")
+Dissimilarities_df$i <- gsub(as.character(Dissimilarities_df$i), pattern = "Performance.", replacement = "[P]")
+Dissimilarities_df$i <- gsub(as.character(Dissimilarities_df$i), pattern = "Informed", replacement = "Clim")
+Dissimilarities_df$i <- gsub(as.character(Dissimilarities_df$i), pattern = "Naive", replacement = "")
+
+OS_gg <- ggplot(Dissimilarities_df[Dissimilarities_df$j == "Realisable True Network",], 
+                aes(x = Accuracy, y = factor(i, levels = cases))
+                ) + 
+  stat_halfeye() +
+  # geom_violin() + 
   facet_wrap(~j, scales = "free_x") + 
   theme_bw() + labs(y = "", x = "Inference Accuracy")
+OS_gg
 ggsave(OS_gg, filename = file.path(Dir.Exports, "Fig_OS.png"), 
        width = 16, height = 8, units = "cm")
 
 # DETECTION REGRESSION =========================================================
+stop("Continue here")
 message("Detection of Positive, Negative, and Absent Associations")
 Detection_ls <- lapply(names(Inference_ls), FUN = function(SimName){
   # SimName <- names(Inference_ls)[12] 
@@ -187,7 +263,7 @@ Detection_ls <- lapply(names(Inference_ls), FUN = function(SimName){
 })
 names(Detection_ls) <- names(Inference_ls)
 
-DetectionModels_df <- lapply(X = names(Detection_ls[[1]]), 
+DetectionModels_df <- lapply(X = names(Detection_ls[[1]])[2], 
                              FUN = function(Realisation){
                                Detect_df <- lapply(Detection_ls, "[[", Realisation)
                                Detect_df <- do.call(rbind, 
@@ -254,12 +330,11 @@ DetectionModels_df <- lapply(X = names(Detection_ls[[1]]),
                                                                   cores = nChains,
                                                                   seed = 42)
                                  }
-                                 save(Bayes_Model_Absent, 
+                                 save(Bayes_Model_Absent,
                                       file = file.path(Dir.Exports, paste0("Bayes_Model_Absent_", Realisation,".RData")))
                                }
                                
                                ## Plotting --------------------------------------------------------------------
-                               
                                FUN_plotcoeffs <- function(plottdf){
                                  plot_ls <- as.list(rep(NA, length(unique(plottdf$Method))))
                                  plottdf <- plottdf[plottdf$value != Inf, ]
@@ -268,7 +343,8 @@ DetectionModels_df <- lapply(X = names(Detection_ls[[1]]),
                                    plot_df <- plottdf[plottdf$Method == Method_iter, ]
                                    plot_ls[[i]] <- ggplot(plot_df[plot_df$value < 1e3,], # this limitation is here awaiting further simulation runs and better bayesian model fit 
                                                           aes(x = value)) + 
-                                     geom_histogram(bins = 1e2) +
+                                     stat_halfeyeh() + 
+                                     # geom_histogram(bins = 1e2) +
                                      # geom_density() + 
                                      labs(y = "Model Coefficient", x = "") + 
                                      facet_wrap(~ factor(variable, levels = c("Intercept", "Magnitude", "Environmental \n Difference", "Interaction")), 
@@ -285,8 +361,8 @@ DetectionModels_df <- lapply(X = names(Detection_ls[[1]]),
                                                Negative = Bayes_Model_Negative,
                                                Absent = Bayes_Model_Absent
                                )
-                               ProbMat <- expand.grid(seq(from = 0, to = 10, by = 0.05),
-                                                      seq(from = 0, to = 3, by = 0.5))
+                               ProbMat <- expand.grid(seq(from = 0, to = 10, length.out = 1e2),
+                                                      seq(from = 0, to = 3, length.out = 1e2))
                                colnames(ProbMat) <- c("Magnitude", "EnvDiff")
                                
                                for(k in names(Plot_ls)){
@@ -363,18 +439,18 @@ DetectionModels_df <- lapply(X = names(Detection_ls[[1]]),
                                }
                                Plot_ls
                              })
-names(DetectionModels_df) <- names(Detection_ls[[1]])
+# names(DetectionModels_df) <- names(Detection_ls[[1]])[2]
 
-WritePlot <- lapply(names(DetectionModels_df), FUN = function(Realisation){
-  ggsave(cowplot::plot_grid(plotlist = DetectionModels_df[[Realisation]], ncol = 1), 
-         filename = file.path(Dir.Exports, paste0("Fig_DetectionBayes_", Realisation, ".png")), 
-         width = 26, height = 38, units = "cm")
+WritePlot <- lapply(names(DetectionModels_df[[1]]), FUN = function(Mode){
+  ggsave(DetectionModels_df[[1]][[Mode]], 
+         filename = file.path(Dir.Exports, paste0("Fig_CorrectDetectionBayes_", Mode, ".png")), 
+         width = 26, height = 20, units = "cm")
   
 })
 
 # ERROR RATES ==================================================================
 message("Inference Error Rates")
-ErrorRates_ls <- lapply(X = names(Detection_ls[[1]]), 
+ErrorRates_ls <- lapply(X = names(Detection_ls[[1]])[2], 
                         FUN = function(Realisation){
                           
                           ErrorRates_df <- do.call(rbind, 
@@ -443,7 +519,7 @@ ErrorRates_ls <- lapply(X = names(Detection_ls[[1]]),
                           
                           ErrorRates_df
                         })
-names(ErrorRates_ls) <- names(Detection_ls[[1]])
+names(ErrorRates_ls) <- names(Detection_ls[[1]])[2]
 
 WritePlot <- lapply(names(ErrorRates_ls), FUN = function(Realisation){
   ErrorRates_df <- ErrorRates_ls[[Realisation]]
