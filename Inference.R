@@ -100,14 +100,18 @@ FUN.Inference <- function(Simulation_Output = NULL,
   
   ## Network of only survived species till end of simulation and within reach of each other to actually interact
   # Figuring out trait differences between potentially interacting species
-  SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean) # might want to consider whether to delimit this by initialising or final trait values
-  SPTrait_df$SD <- aggregate(ID_df, Trait ~ Species, FUN = sd)$Trait
+  SPTrait_df <- data.frame(Simulation_Output$Traits)
+  SPTrait_df$Species <- rownames(SPTrait_df)
+  colnames(SPTrait_df) <- c("Trait", "Species")
+  # SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean) # might want to consider whether to delimit this by initialising or final trait values
+  # SPTrait_df$SD <- aggregate(ID_df, Trait ~ Species, FUN = sd)$Trait
+  SPTrait_df$SD <- 1
   SPTrait_df <- SPTrait_df[match(colnames(Network_Realised), SPTrait_df$Species), ]
   SPTrait_mat <- abs(outer(SPTrait_df$Trait, SPTrait_df$Trait, '-'))
   colnames(SPTrait_mat) <- rownames(SPTrait_mat) <- colnames(Network_Realised)
   SPTraitSD_mat <- abs(outer(SPTrait_df$SD, SPTrait_df$SD, '+'))
   colnames(SPTraitSD_mat) <- rownames(SPTraitSD_mat) <- colnames(Network_Realised)
-  TraitDiff_mat <- SPTrait_mat-SPTraitSD_mat
+  TraitDiff_mat <- SPTrait_mat #-SPTraitSD_mat
   
   # limitting to realised interactions
   # Simulation_Output$Call$sd <- 2.5 # hard-coded for now
@@ -464,7 +468,7 @@ Inference_ls <- pblapply(1:length(Data_fs),
                              if(nrow(Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]) == 0){
                                models_ls <- NA
                              }else{
-                               models_ls <- FUN.Inference(Simulation_Output =  Simulation_Output,
+                               models_ls <- FUN.Inference(Simulation_Output = Simulation_Output,
                                                           Dir.Exports = Dir.Exports,
                                                           Dir.Models = Dir.Models,
                                                           Treatment_Iter = Treatment_Iter,

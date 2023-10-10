@@ -744,15 +744,18 @@ TrueMat_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Stren
   scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
 
 ### Trait Difference ----
-ID_df <- models_ls$ID_df
-SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean)
-SPTrait_df$SD <- aggregate(ID_df, Trait ~ Species, FUN = sd)$Trait
+SPTrait_df <- data.frame(Simulation_Output$Traits)
+SPTrait_df$Species <- rownames(SPTrait_df)
+colnames(SPTrait_df) <- c("Trait", "Species")
+# SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean) # might want to consider whether to delimit this by initialising or final trait values
+# SPTrait_df$SD <- aggregate(ID_df, Trait ~ Species, FUN = sd)$Trait
+SPTrait_df$SD <- 1
 SPTrait_mat <- abs(outer(SPTrait_df$Trait, SPTrait_df$Trait, '-'))
 colnames(SPTrait_mat) <- rownames(SPTrait_mat) <- SPTrait_df$Species
 SPTraitSD_mat <- abs(outer(SPTrait_df$SD, SPTrait_df$SD, '+'))
 colnames(SPTraitSD_mat) <- rownames(SPTraitSD_mat) <- SPTrait_df$Species
 
-TraitDiff_mat <- SPTrait_mat-SPTraitSD_mat
+TraitDiff_mat <- SPTrait_mat#-SPTraitSD_mat
 diag(TraitDiff_mat) <- NA
 TraitDiff_mat[lower.tri(TraitDiff_mat)] <- NA
 
