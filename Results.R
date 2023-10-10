@@ -727,14 +727,10 @@ models_ls <- FUN.Inference(Simulation_Output,
                            Treatment_Iter = "Concept",
                            Cores = 4)
 
+
 ## Network Realisation ---------------------------------------------------------
 ### True NonRealised ----
-Realisation <- "NonReal"
-net_mat <- as_adjacency_matrix(models_ls$Weighted[[Realisation]], attr = "weight",
-                               type = "upper", sparse = FALSE)
-net_mat[lower.tri(net_mat)] <- NA
-diag(net_mat) <- NA
-colnames(net_mat) <- rownames(net_mat) <- V(Simulation_Output$Network)
+net_mat <- models_ls$mats$True$NonRealised
 edg_df1 <- melt(net_mat)
 colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
 TrueMat_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
@@ -778,10 +774,7 @@ TraitDiff_gg <- ggplot(data = d2.df, aes(x = x, y = y, fill = z))+
   labs(x = "Partner 1", y = "Partner 2") + guides(shape = "none") 
 
 ### True Realised ----
-Realisation <- "Real"
-net_mat <- as_adjacency_matrix(models_ls$Weighted[[Realisation]], attr = "weight",
-                               type = "upper", sparse = FALSE)
-net_mat[lower.tri(net_mat)] <- NA
+net_mat <- models_ls$mats$True$Realised
 diag(net_mat) <- NA
 colnames(net_mat) <- rownames(net_mat) <- V(Simulation_Output$Network)
 True_mat <- net_mat
@@ -804,78 +797,55 @@ ggsave(cowplot::plot_grid(TrueMat_gg, TraitDiff_gg, TrueMatReal_gg, ncol = 3, la
 )
 
 ## Inference Visualisation -----------------------------------------------------
-print("HMSC network matrix")
-if(length(E(models_ls$Informed$Graphs$HMSC)) != 0){
-  net_mat <- as_adjacency_matrix(models_ls$Informed$Graphs$HMSC, attr = "weight",
-                                 type = "upper", sparse = FALSE)
-}else{
-  net_mat <- matrix(rep(0, length = length(V(models_ls$Informed$Graphs$HMSC))^2), ncol = length(V(models_ls$Informed$Graphs$HMSC)))
-  colnames(net_mat) <- rownames(net_mat) <- sort(V(models_ls$Informed$Graphs$HMSC)$name)
+PrepMat <- function(matrix = models_ls$mats$COOCCUR, edg_df2 = edg_df1, name = "COOCCUR"){
+  colnames(matrix) <- rownames(matrix) <- gsub(colnames(matrix), pattern = "Sp_", replacement = "")
+  model_df <- melt(matrix)
+  colnames(model_df) <- c("Partner 1", "Partner 2", "Strength")
+  model_df$Approach <- name
+  model_df$Correct <- model_df$Strength == sign(edg_df2$Strength)
+  model_df
 }
 
-net_mat[lower.tri(net_mat)] <- NA
-diag(net_mat) <- NA
-colnames(net_mat) <- rownames(net_mat) <- V(models_ls$Informed$Graphs$HMSC)
-HMSC_mat <- net_mat
-edg_df <- melt(net_mat)
-colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
-edg_df$Method <- "HMSC"
-HMSC_net <- graph_from_adjacency_matrix(net_mat, weighted = TRUE, mode = "undirected")
-V(HMSC_net)$name <- paste0("Sp_", V(HMSC_net)$name)
-edg_df2 <- edg_df
-
-print("COOCCUR network matrix")
-net_mat <- as_adjacency_matrix(as.undirected(models_ls$COOCCUR$Graphs$COOCCUR), attr = "weight",
-                               type = "upper", sparse = FALSE)
-net_mat[lower.tri(net_mat)] <- NA
-diag(net_mat) <- NA
-colnames(net_mat) <- rownames(net_mat) <- V(models_ls$COOCCUR$Graphs$COOCCUR)
-COOCCUR_mat <- net_mat
-edg_df <- melt(net_mat)
-colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
-edg_df$Method <- "COOCCUR"
-COOCCUR_net <- graph_from_adjacency_matrix(net_mat, weighted = TRUE, mode = "undirected")
-V(COOCCUR_net)$name <- paste0("Sp_", V(COOCCUR_net)$name)
-
-edg_df2 <- rbind(edg_df2, edg_df)
-# edg_df2$Strength <- as.numeric(edg_df2$Strength)
-edg_df2$Correct <- NA
-edg_df2$Correct[which((edg_df2$Strength == 1) + (sign(edg_df1$Strength) == 1) == 2)] <- 1
-edg_df2$Correct[which((edg_df2$Strength == -1) + (sign(edg_df1$Strength) == -1) == 2)] <- 1
-edg_df2$Correct[which((edg_df2$Strength == 0) + (sign(edg_df1$Strength) == 0) == 2)] <- 1
-edg_df2$Correct[which(is.na(edg_df2$Correct) & !is.na(edg_df2$Strength))] <- 0
-edg_df2$Correct <- factor(edg_df2$Correct)
-
-InfMat_gg <- ggplot(edg_df2, 
-                    aes(x = `Partner 1`, y = `Partner 2`, 
-                        fill = Strength, shape = Correct)) +
+COOCCUR_plot <- PrepMat()
+COOCCUR_plot <- ggplot(COOCCUR_plot, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
   geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
   coord_fixed() +
-  geom_point(size = 3) + 
-  scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "",
-                     guide = "none") +  
   guides(fill = guide_colourbar(barwidth = 2,
                                 barheight = 15,
-                                title = "Associatiuon")) + 
+                                title = "Inferred \n Association")) + 
+  geom_point(aes(shape = Correct)) + 
+  scale_shape_manual(values = c(26, 15)) + 
   theme_bw() + 
-  facet_wrap(~Method) + 
   theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
-  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
+  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") + 
+  guides(shape = "none") 
 
-ggsave(InfMat_gg, filename = file.path(Dir.Concept, "Fig_Matrix_Inferred.png"), 
-       width = 40, height = 22, units = "cm")
+model_df <- do.call(rbind, lapply(names(models_ls$mats$HMSC), FUN = function(x){
+  PrepMat(matrix = models_ls$mats$HMSC[[x]], name = x)
+}))
 
+HMSC_plot <- ggplot(model_df, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
+  geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
+  coord_fixed() +
+  guides(fill = guide_colourbar(barwidth = 2,
+                                barheight = 15,
+                                title = "Inferred \n Association")) + 
+  geom_point(aes(shape = Correct)) + 
+  scale_shape_manual(values = c(26, 15)) + 
+  theme_bw() + 
+  facet_wrap(~Approach, ncol = 3, dir="v") +
+  theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
+  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") + 
+  guides(shape = "none") 
 
-models_ls
+cowplot::plot_grid(
+  cowplot::plot_grid(
+    TrueMatReal_gg, 
+    COOCCUR_plot
+    ),
+  HMSC_plot + theme(plot.margin = unit(c(0,0,0,0), "cm")), 
+  ncol = 1, rel_heights = c(1.7, 3)
+)
 
-Dissimilarities_df <- rbind(models_ls$Informed$Dissimilarity,
-                            models_ls$COOCCUR$Dissimilarity)
-Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvNonReal", replacement = "Full True Network")
-Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvReal", replacement = "Realisable True Network")
-
-OS_gg <- ggplot(Dissimilarities_df[Dissimilarities_df$j == "Realisable True Network",], 
-                aes(y = Accuracy, x = factor(i, levels = c("COOCCUR", "HMSC")))) + 
-  geom_bar(stat = "identity") + 
-  # facet_wrap(~j, scales = "free_x") + 
-  theme_bw() + labs(x = "", y = "Inference Accuracy [%]")
-OS_gg
+ggsave(filename = file.path(Dir.Concept, "Fig_Inference.png"), 
+       width = 24, height = 29, units = "cm")
