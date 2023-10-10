@@ -499,7 +499,7 @@ NonNA_count <- aggregate(Values ~ Approach + Metric, data = ErrorRates_df,
                          na.action = NULL)
 colnames(NonNA_count)[3] <- "n"
 
-ggplot(ErrorRates_df, aes(y = Values, x = Approach, label = n)) +
+ggplot(ErrorRates_df, aes(y = Values, x = Approach)) +
   geom_text(data = NonNA_count, aes(x = Approach, y = 1.1, label = n)) + 
   geom_boxplot() +
   facet_wrap(~ factor(Metric, levels = c("TP", "FP", "MP", "TN", "FN", "MN", "TA", "FA", "MA")),
