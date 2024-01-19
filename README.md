@@ -1,4 +1,4 @@
-# Ecological Network Inference across Scales
+# Ecological Network Inference Validation
 Part of Chapter 3 of my PhD project.
 
 ## Abstract
