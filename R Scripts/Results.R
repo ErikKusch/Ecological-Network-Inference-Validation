@@ -1,5 +1,5 @@
 #' ####################################################################### #
-#' PROJECT: [PhD; X - DATA SIMULATIONS] 
+#' PROJECT: [InfVal; Post-Inference Visualisation & Analyses] 
 #' CONTENTS: 
 #'  - Compare Inferred and Known Networks
 #'  - Tally Error Rates for Inferred Networks
@@ -7,9 +7,10 @@
 #'  - Inference.R
 #' AUTHOR: [Erik Kusch]
 #' ####################################################################### #
+message("Compiling Results")
 
 # PREAMBLE =====================================================================
-source("Inference.R")
+# source("Inference.R")
 # Inference_ls <- pblapply(
 #   list.files(Dir.Exports, pattern = "Association_.*.RData", full.names = TRUE),
 #   FUN = function(x){
@@ -19,15 +20,16 @@ source("Inference.R")
 # names(Inference_ls) <- list.files(Dir.Exports, pattern = "Association_.*.RData")
 # OneSD <- unlist(lapply(strsplit(names(Inference_ls), split = "_"), "[[", 2)) == 1
 # Inference_ls <- Inference_ls[OneSD]
-package_vec <- c(package_vec, "brms", "rethinking", "reshape2", 
-                 "cowplot", "scales", "ggnewscale")
-sapply(package_vec, install.load.package)
-Dir.Base <- getwd() # read out the project directory
-Dir.Concept <- file.path(Dir.Base, "Concept")
-Dirs <- c(Dir.Concept)
-CreateDir <- sapply(Dirs, function(x) if(!dir.exists(x)) dir.create(x))
+# package_vec <- c(package_vec, "brms", "rethinking", "reshape2", 
+#                  "cowplot", "scales", "ggnewscale")
+# sapply(package_vec, install.load.package)
+# Dir.Base <- getwd() # read out the project directory
+# Dir.Concept <- file.path(Dir.Base, "Concept")
+# Dirs <- c(Dir.Concept)
+# CreateDir <- sapply(Dirs, function(x) if(!dir.exists(x)) dir.create(x))
 
 # INFERRED VS. INFERRED ========================================================
+print("INFERRED VS. INFERRED")
 InfComp <- pblapply(Inference_ls, FUN = function(Sim){
   mats <- Sim$mats$HMSC
   # mats$COOCCUR <- Sim$mats$COOCCUR
@@ -103,8 +105,8 @@ ggplot(mapping = aes(x = factor(Var1, levels = cases), y = factor(Var2, levels =
 ggsave(filename = file.path(Dir.Exports, "Fig_InfVInf.png"), 
        width = 16, height = 9, units = "cm")
 
-# BETA DIVERSITY ===============================================================
-message("Comparison of Dissimilarities")
+# WHOLE-NETWORK ACCURACY =======================================================
+print("WHOLE-NETWORK ACCURACY")
 Dissimilarities_df <- do.call(rbind, 
                               pblapply(Inference_ls, FUN = function(x){
                                 binding_df <- do.call(rbind, lapply(x, "[[", "Dissimilarity"))
@@ -529,8 +531,8 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
     ## Network Creation
     n_spec = 5,
     NetworkType = "Association", # or "Association"
-    Sparcity = 0.1,
-    MaxStrength = 10,
+    Sparcity = 0,
+    MaxStrength = 20,
     ## Initial Individual Creation
     n_individuals = 4e2,
     n_mode = "each", # or "total"
@@ -543,9 +545,9 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
     b0 = 0.6,
     t_max = 10,
     t_inter = 0.1,
-    sd = 2.5,
-    migration = 0.2,
-    Effect_Dis = 0.5,
+    sd = 5,
+    migration = 0.5,
+    Effect_Dis = 1,
     verbose = TRUE
   )
   end <- Sys.time()
@@ -556,7 +558,7 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
 ## Input Data Visualisation ----------------------------------------------------
 print("Input Data Visualisation")
 
-### starting constellation ----
+### starting constellation ----f
 first_df <- Simulation_Output$Simulation[[1]]
 first_df$Species <- factor(as.numeric(gsub(first_df$Species, pattern = "Sp_", replacement = "")))
 Traits_df <- data.frame(Traits = Simulation_Output$Traits,
@@ -574,11 +576,13 @@ Initial_gg <- ggplot(first_df,
   xlim(eval(Simulation_Output$Call[["Env_range"]])[1],
        eval(Simulation_Output$Call[["Env_range"]])[2]) + 
   theme_bw()
+Initial_gg
 
 ### ending constellation ----
 ID_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
 last_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
 last_df$Species <- factor(as.numeric(gsub(last_df$Species, pattern = "Sp_", replacement = "")))
+ID2_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)-1]]
 Traits_df <- aggregate(Trait ~ Species, data = ID_df, FUN = mean)
 Traits_df$Species <- factor(as.numeric(gsub(Traits_df$Species, 
                                             pattern = "Sp_", replacement = "")))
@@ -593,6 +597,7 @@ Final_gg <- ggplot(last_df,
   xlim(eval(Simulation_Output$Call[["Env_range"]])[1],
        eval(Simulation_Output$Call[["Env_range"]])[2]) +
   theme_bw()
+Final_gg
 leg <- get_legend(Final_gg + theme(legend.position = "bottom"))
 
 ### constellation plotting ----
@@ -600,40 +605,46 @@ Input_gg <- plot_grid(plot_grid(Initial_gg + theme(legend.position = "none"),
                                 Final_gg + theme(legend.position = "none"), 
                                 nrow = 1),
                       leg, rel_heights = c(1,0.1), ncol = 1)
+Input_gg
 ggsave(Input_gg, filename = file.path(Dir.Concept, "Fig_SpatialInputs.png"), 
        width = 30, height = 16, units = "cm")
 
 ### species-site matrices ----
 ## make locational data into site X species matrix
+n_Grid <- 5
 GridCoords <- seq(from = eval(Simulation_Output$Call[["Env_range"]])[1], 
                   to = eval(Simulation_Output$Call[["Env_range"]])[2], 
                   length = n_Grid+1)[-(n_Grid+1)]
 grids_df <- expand.grid(GridCoords, GridCoords)
 colnames(grids_df) <- c("X", "Y")
 grids_df$GridID <- 1:nrow(grids_df)
-GridsID_vec <- lapply(1:nrow(ID_df),
-                      FUN = function(x){
-                        Xs <- which(ID_df[x, "X"] >= grids_df$X)
-                        Ys <- which(ID_df[x, "Y"] >= grids_df$Y)
-                        Xs[tail(which(Xs %in% Ys), 1)]
-                      }
-)
-GridsID <- unlist(GridsID_vec)
-Pop_dfBASE <- data.frame(
-  matrix(0, nrow = nrow(grids_df),
-         ncol = length(unique(ID_df$Species))+1
+
+PoptabStore_ls <- pblapply(list(ID_df, ID2_df), FUN = function(ID_df){
+  GridsID_vec <- lapply(1:nrow(ID_df),
+                        FUN = function(x){
+                          Xs <- which(ID_df[x, "X"] >= grids_df$X)
+                          Ys <- which(ID_df[x, "Y"] >= grids_df$Y)
+                          Xs[tail(which(Xs %in% Ys), 1)]
+                        }
   )
-)
-colnames(Pop_dfBASE) <- c("GridsID", sort(unique(ID_df$Species)))
-Pop_dfBASE$GridsID <- grids_df$GridID
-#### observed frequencies
-Poptab <- as.data.frame.matrix(table(GridsID, ID_df$Species))
-Poptab$GridsID <- as.numeric(rownames(Poptab))
-#### matching observed with base frame
-PoptabStore <- Pop_dfBASE
-PoptabStore[match(Poptab$GridsID, PoptabStore$GridsID), -1] <- Poptab[,-ncol(Poptab)]
-### storing site X species matrix
-Y <- PoptabStore[,-1] # rownames are grid IDs
+  GridsID <- unlist(GridsID_vec)
+  Pop_dfBASE <- data.frame(
+    matrix(0, nrow = nrow(grids_df),
+           ncol = length(unique(ID_df$Species))+1
+    )
+  )
+  colnames(Pop_dfBASE) <- c("GridsID", sort(unique(ID_df$Species)))
+  Pop_dfBASE$GridsID <- grids_df$GridID
+  #### observed frequencies
+  Poptab <- as.data.frame.matrix(table(GridsID, ID_df$Species))
+  Poptab$GridsID <- as.numeric(rownames(Poptab))
+  #### matching observed with base frame
+  PoptabStore <- Pop_dfBASE
+  PoptabStore[match(Poptab$GridsID, PoptabStore$GridsID), -1] <- Poptab[,-ncol(Poptab)]
+  ### storing site X species matrix
+  Y <- PoptabStore[,-1] # rownames are grid IDs
+})
+Y <- PoptabStore_ls[[1]] # last simulation step
 
 ### Plotting
 grid_vis <- ggplot(last_df, 
@@ -641,39 +652,72 @@ grid_vis <- ggplot(last_df,
   geom_point() + 
   scale_shape_manual(values=1:nlevels(last_df$Species)) + 
   scale_color_viridis_d() + 
-  geom_vline(xintercept = GridCoords+diff(GridCoords)[1]/2) + 
-  geom_hline(yintercept = GridCoords+diff(GridCoords)[1]/2) + 
+  geom_vline(xintercept = GridCoords) + 
+  geom_hline(yintercept = GridCoords) + 
   xlim(eval(Simulation_Output$Call[["Env_range"]])[1],
        eval(Simulation_Output$Call[["Env_range"]])[2]) +
   theme_bw()
+grid_vis
 
-SPSite_df <- cbind(Y, (grids_df+diff(GridCoords)[1]/2)[,1:2])
-loop_vec <- colnames(SPSite_df)[-((ncol(SPSite_df)-1):ncol(SPSite_df))]
-plot_col <- viridis_pal()(length(loop_vec))
-names(plot_col) <- loop_vec
-plot_ls <- as.list(rep(NA, length = (length(loop_vec)+1)))
-plot_ls[[1]] <- grid_vis
-names(plot_ls) <- c("gridvis", loop_vec)
-for(i in loop_vec){
-  abund_df <- SPSite_df[, c(i, "X", "Y")]
-  colnames(abund_df)[1] <- "Abund"
-  plot_ls[[i]] <- ggplot(abund_df, aes(x = X, y = Y, fill = Abund)) + 
-    geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
-    coord_fixed() +
-    scale_fill_gradient(low = "grey",
-                        high = plot_col[names(plot_col) == i]) + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Associatiuon")) + 
-    theme_bw() + theme(legend.position = "none") + theme(plot.margin = unit(c(0,0,0,0), "cm")) + labs(y = "", x = "")
-}
+InputGrids_ls <- pblapply(c("Occurrence", "Abundance", "Performance"), FUN = function(Iter){
+  # print(Iter)
+  Y_Iter <- Y
+  if(Iter == "Occurrence"){
+    Y_Iter <- sign(Y)
+  }
+  if(Iter == "Performance"){
+    Y_Iter <- Y <- PoptabStore_ls[[2]]-PoptabStore_ls[[1]] # second-to-last-last
+  }
+  # Y_Iter[Y_Iter == 0] <- NA
+  SPSite_df <- cbind(Y_Iter, (grids_df+diff(GridCoords)[1]/2)[,1:2])
+  loop_vec <- colnames(SPSite_df)[-((ncol(SPSite_df)-1):ncol(SPSite_df))]
+  plot_col <- viridis_pal()(length(loop_vec))
+  names(plot_col) <- loop_vec
+  plot_ls <- as.list(rep(NA, length = (length(loop_vec)+1)))
+  plot_ls[[1]] <- grid_vis
+  names(plot_ls) <- c("gridvis", loop_vec)
+  for(i in loop_vec){
+    abund_df <- SPSite_df[, c(i, "X", "Y")]
+    colnames(abund_df)[1] <- "Abund"
+    if(Iter == "Occurrence"){abund_df$Abund <- factor(abund_df$Abund)}
+    plot_ls[[i]] <- ggplot(abund_df, aes(x = X, y = Y, fill = Abund)) + 
+      geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
+      coord_fixed() +
+      theme_bw() + 
+      theme(legend.position = "bottom") + # "none"
+      theme(plot.margin = unit(c(0,0,0,0), "cm")) + labs(y = "", x = "")
+    if(Iter == "Occurrence"){
+      plot_ls[[i]] <- plot_ls[[i]] + scale_fill_manual(values = c("white",
+                                                                  as.character(plot_col[names(plot_col) == i])),
+                                                       name = "")
+    }
+    if(Iter == "Abundance"){
+      plot_ls[[i]] <- plot_ls[[i]] + scale_fill_gradient(low = "white",
+                                                         high = plot_col[names(plot_col) == i]) + 
+        guides(fill = guide_colourbar(barwidth = 5,
+                                      barheight = 0.75,
+                                      title = ""))
+    }
+    if(Iter == "Performance"){
+      plot_ls[[i]] <- plot_ls[[i]] + scale_fill_gradient2(low = "darkred", 
+                                                          high = plot_col[names(plot_col) == i]) + 
+        guides(fill = guide_colourbar(barwidth = 5,
+                                      barheight = 0.75,
+                                      title = ""))
+    }
+    plot_ls[[i]] <- plot_ls[[i]] + 
+      theme(legend.box.spacing = unit(0, "pt")) # The spacing between the plotting area and the legend box (unit)
+  }
+  plot_grid(plotlist = plot_ls[-1], nrow = 1)
+})
 
-InputMatrices_gg <- plot_grid(plot_ls[[1]],
-                              plot_grid(plotlist = plot_ls[-1], nrow = 1),
-                              ncol = 1, rel_heights = c(3, 1.7), labels = c("A", "B")
+InputMatrices_gg <- plot_grid(grid_vis,
+                              plot_grid(plotlist = InputGrids_ls, nrow = 3, labels = c("B", "C", "D")),
+                              ncol = 1, rel_heights = c(2.15, 3), labels = c("A", "")
 )
+# InputMatrices_gg
 ggsave(InputMatrices_gg, filename = file.path(Dir.Concept, "Fig_InputMatrices.png"), 
-       width = 36, height = 20, units = "cm")
+       width = 36, height = 40, units = "cm")
 
 ## Abundance Through Time ------------------------------------------------------
 print("Abundance Visualisation through Time")
@@ -700,7 +744,7 @@ print("Spatial Gradient Visualisation")
 env.xy <- function(x = NULL, y = NULL){x}
 gridseq <- seq(from = eval(Simulation_Output$Call[["Env_range"]])[1],
                to = eval(Simulation_Output$Call[["Env_range"]])[2],
-               length = 1e1)
+               length = 1e2)
 gridmat <- expand.grid(gridseq, gridseq)
 colnames(gridmat) <- c("x", "y")
 gridmat$Phenotype <- apply(gridmat, MARGIN = 1, FUN = function(k){
@@ -731,7 +775,8 @@ models_ls <- FUN.Inference(Simulation_Output,
                            ModelSave = TRUE,
                            Dir.Exports = Dir.Concept,
                            Treatment_Iter = "Concept",
-                           Cores = 4)
+                           Cores = 4,
+                           n_Grid = n_Grid)
 
 
 ## Network Realisation ---------------------------------------------------------
@@ -858,7 +903,7 @@ cowplot::plot_grid(
     TrueMatReal_gg
     # , 
     # COOCCUR_plot
-    ),
+  ),
   HMSC_plot + theme(plot.margin = unit(c(0,0,0,0), "cm")), 
   ncol = 1, rel_heights = c(2.5, 3), labels = "AUTO"
 )

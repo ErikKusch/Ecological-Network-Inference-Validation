@@ -1,71 +1,16 @@
 #' ####################################################################### #
-#' PROJECT: [PhD; X - DATA SIMULATIONS] 
+#' PROJECT: [InfVal; HMSC-Inference of Pairwise Associations] 
 #' CONTENTS: 
 #'  - Infer ecological networks from simulation outputs
 #'  - Compute network dissimilarities
 #'  DEPENDENCIES:
-#'  - DataSimulations_HMSC.R must have been run
+#'  -
 #' AUTHOR: [Erik Kusch]
 #' ####################################################################### #
-
-# PREAMBLE =================================================================
-rm(list=ls())
-set.seed(42)
-
-## DIRECTORIES -------------------------------------------------------------
-Dir.Base <- getwd() # read out the project directory
-Dir.Data <- file.path(Dir.Base, "Data")
-Dir.Models <- file.path(Dir.Base, "Models")
-Dir.Exports <- file.path(Dir.Base, "Exports")
-Dirs <- c(Dir.Data, Dir.Models, Dir.Exports)
-CreateDir <- sapply(Dirs, function(x) if(!dir.exists(x)) dir.create(x))
-
-## Packages ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-install.load.package <- function(x) {
-  if (!require(x, character.only = TRUE))
-    install.packages(x, repos='http://cran.us.r-project.org')
-  require(x, character.only = TRUE)
-}
-package_vec <- c(
-  "Hmsc", # for HMSC models
-  "cooccur", # for COOCCUR models
-  "igraph", # for graph representation
-  "devtools", # to install betalink
-  "betalink", # for computation of network dissimilarities
-  "pbapply", # for parallel processing
-  "doParallel", # for clustercalls
-  "ggplot2", # for plotting
-  "tidybayes" # for plotting
-)
-sapply(package_vec, install.load.package)
-
-# if("betalink" %in% rownames(installed.packages()) == FALSE){
-#   install_version("betalink", version = "2.2.1", repos = "http://cran.us.r-project.org")
-# }
-# library(betalink)
-
-`%nin%` <- Negate(`%in%`)
-
-## Bayes Settings ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-nSamples <- 7e3
-# nSamples <- 2e3
-thin <- 1
-nWarmup <- round(nSamples*0.3*thin, 0)
-nChains <- 4
-n_Grid <- 10
-message(paste0("thin = ",as.character(thin),"; samples = ",as.character(nSamples)))
-
-## Comparison Function +++++++++++++++++++++++++++++++++++++++++++++++++++++
-FUN_Matcomparison <- function(mat1, mat2){
-  eq <- mat1==mat2 # avoid to later compute this twice
-  # eq <- ifelse(eq, 0, mat2) # get the desired matrix
-  100-round(sum(!eq, na.rm = TRUE)/sum(!is.na(eq))*100, 2) # get the percentage of non equal values
-  #[1] 33.33
-}
+message("Running Association Inference")
 
 # DATA =====================================================================
 Data_fs <- list.files(Dir.Data, pattern = ".RData")
-# Data_fs <- Data_fs[unlist(lapply(strsplit(Data_fs, split = "_"), "[[", 2)) == 1]
 
 # INFERENCE FUNCTIONS ======================================================
 FUN.Inference <- function(Simulation_Output = NULL, 
@@ -73,6 +18,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
                           Dir.Models = NULL,
                           ModelSave = TRUE,
                           Treatment_Iter = NULL,
+                          n_Grid = 10,
                           Cores = 1){
   ### DATA READOUT ####
   ## Simulated individuals
@@ -183,7 +129,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   Y <- list(Occurrence = Occurrences,
             Abundance = Abundances,
             Performance = Performances)
-  
+  # print(Y)
   # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
   X <- data.frame(
     # X = grids_df$X,
@@ -371,65 +317,67 @@ FUN.Inference <- function(Simulation_Output = NULL,
     print(models_ls[[Model_Iter]]$Duration)
   } # model loop
   
-  ## COOCCUR
-  mat_Iter <- Occurrences
-  mat_Iter[mat_Iter > 0] <- 1
-  model_coccurr <- cooccur(mat = t(mat_Iter), type = "spp_site", 
-                           thresh = FALSE, spp_names = TRUE)
-  Interac_df <- effect.sizes(model_coccurr, standardized = TRUE)
-  Interac_df$pLT <- prob.table(model_coccurr)$p_lt
-  Interac_df$pGT <- prob.table(model_coccurr)$p_gt
-  Interac_df$Sig <- Interac_df[,4] < 0.05 | Interac_df[,5] < 0.05
-  colnames(Interac_df)[1:2] <- c("Partner1", "Partner2")
-  
-  COOCCUR_ig <- graph_from_data_frame(Interac_df[Interac_df$Sig == TRUE,], 
-                                      directed = mode)
-  Spec_vec <- unique(c(Interac_df$Partner1, Interac_df$Partner2))
-  if(length(E(COOCCUR_ig)) != 0){
-    E(COOCCUR_ig)$weight <- E(COOCCUR_ig)$effects
-    E(COOCCUR_ig)$weight[E(COOCCUR_ig)$weight > 0] <- 1
-    E(COOCCUR_ig)$weight[E(COOCCUR_ig)$weight < 0] <- -1
-    origvert <- names(V(COOCCUR_ig))
-    addvert <- Spec_vec[Spec_vec %nin% names(V(COOCCUR_ig))
-    ]
-    COOCCUR_ig <- add_vertices(COOCCUR_ig, 
-                               nv = length(addvert))
-    COOCCUR_ig <- set.vertex.attribute(COOCCUR_ig, "name", value = c(origvert, addvert))
-  }else{
-    COOCCUR_ig <- make_empty_graph(n = length(Spec_vec))
-    COOCCUR_ig <- set.vertex.attribute(COOCCUR_ig, "name", value = Spec_vec)
-  }
-  
-  # V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
-  # E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
-  COOCCUR_ig <- permute(as.undirected(COOCCUR_ig), match(V(COOCCUR_ig)$name, colnames(Real_mat)))
-
-  net_mat <- as_adjacency_matrix(as.undirected(COOCCUR_ig), attr = "weight",
-                                 type = "upper", sparse = FALSE)
-  net_mat[lower.tri(net_mat)] <- NA
-  diag(net_mat) <- NA
-  colnames(net_mat) <- rownames(net_mat) <- V(COOCCUR_ig)$name
-  COOCCUR_mat <- net_mat
-  
-  Graph <- COOCCUR_ig
- 
-  # betadiv <- network_betadiversity(N = Graphs_ls)[-3, ]
-  
-  betadiv <- data.frame(i = c("COOCCUR", "COOCCUR"),
-                        j = c("SurvNonReal", "SurvReal"),
-                        Accuracy = c(FUN_Matcomparison(mat1 = sign(NonReal_mat), mat2 = COOCCUR_mat),
-                                     FUN_Matcomparison(mat1 = sign(Real_mat), mat2 = COOCCUR_mat))
-  )
-  
-  models_ls$COOCCUR <- list(COOCCUR_associations = Interac_df,
-                            Graph = Graph,
-                            Dissimilarity = betadiv
-  )
-  
+  # ## COOCCUR
+  # mat_Iter <- Occurrences
+  # mat_Iter[mat_Iter > 0] <- 1
+  # model_coccurr <- cooccur(mat = t(mat_Iter), type = "spp_site", 
+  #                          thresh = FALSE, spp_names = TRUE)
+  # Interac_df <- effect.sizes(model_coccurr, standardized = TRUE)
+  # Interac_df$pLT <- prob.table(model_coccurr)$p_lt
+  # Interac_df$pGT <- prob.table(model_coccurr)$p_gt
+  # Interac_df$Sig <- Interac_df[,4] < 0.05 | Interac_df[,5] < 0.05
+  # colnames(Interac_df)[1:2] <- c("Partner1", "Partner2")
+  # 
+  # COOCCUR_ig <- graph_from_data_frame(Interac_df[Interac_df$Sig == TRUE,], 
+  #                                     directed = mode)
+  # Spec_vec <- unique(c(Interac_df$Partner1, Interac_df$Partner2))
+  # if(length(E(COOCCUR_ig)) != 0){
+  #   E(COOCCUR_ig)$weight <- E(COOCCUR_ig)$effects
+  #   E(COOCCUR_ig)$weight[E(COOCCUR_ig)$weight > 0] <- 1
+  #   E(COOCCUR_ig)$weight[E(COOCCUR_ig)$weight < 0] <- -1
+  #   origvert <- names(V(COOCCUR_ig))
+  #   addvert <- Spec_vec[Spec_vec %nin% names(V(COOCCUR_ig))
+  #   ]
+  #   COOCCUR_ig <- add_vertices(COOCCUR_ig, 
+  #                              nv = length(addvert))
+  #   COOCCUR_ig <- set.vertex.attribute(COOCCUR_ig, "name", value = c(origvert, addvert))
+  # }else{
+  #   COOCCUR_ig <- make_empty_graph(n = length(Spec_vec))
+  #   COOCCUR_ig <- set.vertex.attribute(COOCCUR_ig, "name", value = Spec_vec)
+  # }
+  # 
+  # # V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
+  # # E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
+  # COOCCUR_ig <- permute(as.undirected(COOCCUR_ig), match(V(COOCCUR_ig)$name, colnames(Real_mat)))
+  # 
+  # net_mat <- as_adjacency_matrix(as.undirected(COOCCUR_ig), attr = "weight",
+  #                                type = "upper", sparse = FALSE)
+  # net_mat[lower.tri(net_mat)] <- NA
+  # diag(net_mat) <- NA
+  # colnames(net_mat) <- rownames(net_mat) <- V(COOCCUR_ig)$name
+  # COOCCUR_mat <- net_mat
+  # 
+  # Graph <- COOCCUR_ig
+  # 
+  # # betadiv <- network_betadiversity(N = Graphs_ls)[-3, ]
+  # 
+  # betadiv <- data.frame(i = c("COOCCUR", "COOCCUR"),
+  #                       j = c("SurvNonReal", "SurvReal"),
+  #                       Accuracy = c(FUN_Matcomparison(mat1 = sign(NonReal_mat), mat2 = COOCCUR_mat),
+  #                                    FUN_Matcomparison(mat1 = sign(Real_mat), mat2 = COOCCUR_mat))
+  # )
+  # 
+  # models_ls$COOCCUR <- list(COOCCUR_associations = Interac_df,
+  #                           Graph = Graph,
+  #                           Dissimilarity = betadiv
+  # )
+  # 
   ## FINAL OUTPUT
   models_ls$mats <- list(True = mat_ls,
-                         HMSC = HMSCmat_ls,
-                         COOCCUR = COOCCUR_mat)
+                         HMSC = HMSCmat_ls
+                         # ,
+                         # COOCCUR = COOCCUR_mat
+                         )
   models_ls$Graphs <- list(SurvNonReal = Network_SurvNonReal,
                            SurvReal = Network_SurvReal)
   models_ls$ID_df <- ID_df
@@ -440,21 +388,12 @@ FUN.Inference <- function(Simulation_Output = NULL,
 }
 
 # ANALYSIS =================================================================
-message("############ INFERENCE & NETWORK DISSIMILARITY COMPUTATION")
-
-print("Registering Cluster")
-nCores <- ifelse(parallel::detectCores()>50, 50, parallel::detectCores())
-cl <- parallel::makeCluster(nCores) # for parallel pbapply functions
 parallel::clusterExport(cl,
-                        varlist = c("Data_fs", "nSamples", "thin", "nWarmup", "nChains",
-                                    "%nin%", "Dir.Data", "Dir.Models", "Dir.Exports",
-                                    "install.load.package", "package_vec", "n_Grid", 
-                                    "FUN.Inference", "FUN_Matcomparison"),
+                        varlist = c("Data_fs", "FUN.Inference"),
                         envir = environment()
 )
 clusterpacks <- clusterCall(cl, function() sapply(package_vec, install.load.package))
 
-print("Inference of Networks")
 Inference_ls <- pblapply(1:length(Data_fs), 
                          cl = cl,
                          FUN = function(Treatment_Enum){
@@ -472,6 +411,7 @@ Inference_ls <- pblapply(1:length(Data_fs),
                                                           Dir.Exports = Dir.Exports,
                                                           Dir.Models = Dir.Models,
                                                           Treatment_Iter = Treatment_Iter,
+                                                          n_Grid = n_Grid,
                                                           ModelSave = TRUE) 
                              }
                            }
@@ -479,4 +419,3 @@ Inference_ls <- pblapply(1:length(Data_fs),
                            models_ls
                          })
 names(Inference_ls) <- Data_fs
-# stop("Remove NA entries from Inference_ls - these are instances were the simulation resulted in extinction of all species")
