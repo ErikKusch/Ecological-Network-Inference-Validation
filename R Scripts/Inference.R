@@ -12,7 +12,7 @@ message("Running Association Inference")
 # DATA =====================================================================
 Data_fs <- list.files(Dir.Data, pattern = ".RData")
 
-# INFERENCE FUNCTIONS ======================================================
+# INFERENCE FUNCTION =======================================================
 FUN.Inference <- function(Simulation_Output = NULL, 
                           Dir.Exports = NULL,
                           Dir.Models = NULL,
@@ -60,8 +60,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   TraitDiff_mat <- SPTrait_mat #-SPTraitSD_mat
   
   # limitting to realised interactions
-  # Simulation_Output$Call$sd <- 2.5 # hard-coded for now
-  Network_Realised[(TraitDiff_mat) > Simulation_Output$Call$sd+Simulation_Output$Call$Effect_Dis] <- 0 # anything greater apart in enviro pref than the interaction window (0.5) + environmental sd cannot be realised
+  Network_Realised[(TraitDiff_mat) > eval(Simulation_Output$Call$sd)+eval(Simulation_Output$Call$Effect_Dis)] <- 0 # anything greater apart in enviro pref than the interaction window (0.5) + environmental sd cannot be realised
   Real_mat <- Network_Realised
   diag(Real_mat) <- NA
   if(!is.directed(Simulation_Output$Network)){
@@ -389,24 +388,22 @@ FUN.Inference <- function(Simulation_Output = NULL,
 
 # ANALYSIS =================================================================
 parallel::clusterExport(cl,
-                        varlist = c("Data_fs", "FUN.Inference"),
+                        varlist = c("FUN.Inference"),
                         envir = environment()
 )
 clusterpacks <- clusterCall(cl, function() sapply(package_vec, install.load.package))
 
-Inference_ls <- pblapply(1:length(Data_fs), 
+Inference_ls <- pblapply(Data_fs, 
                          cl = cl,
-                         FUN = function(Treatment_Enum){
-                           Treatment_Iter <- Data_fs[Treatment_Enum]
-                           
+                         FUN = function(Treatment_Iter){
                            if(file.exists(file.path(Dir.Exports, Treatment_Iter))){
                              load(file.path(Dir.Exports, Treatment_Iter))
                            }else{
                              load(file.path(Dir.Data, Treatment_Iter)) # loads list object "SimulationOutput"
-                             Simulation_Output$Call$sd <- as.numeric(strsplit(Treatment_Iter, split = "_")[[1]][2])
                              if(nrow(Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]) == 0){
                                models_ls <- NA
                              }else{
+                               
                                models_ls <- FUN.Inference(Simulation_Output = Simulation_Output,
                                                           Dir.Exports = Dir.Exports,
                                                           Dir.Models = Dir.Models,

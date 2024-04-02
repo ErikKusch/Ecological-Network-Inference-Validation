@@ -46,18 +46,15 @@ foreach(ITER = 1:n_runs, .options.snow = opts) %dopar% {
 }
 close(pb)
 
-### lightening data load by retaining no intermediate simulation steps
-fs <- list.files(pattern = ".RData", Dir.Data, full.names = TRUE)
-fsize <- sapply(fs, FUN = function(x){file.size(x)})
-reduce_ls <- pbsapply(fs[fsize > 2e7], cl = cl, FUN = function(x){
-  load(x)
-  Simulation_Output$Simulation <- Simulation_Output$Simulation[c(1, 
-                                                                 (length(Simulation_Output$Simulation)-1), 
-                                                                 length(Simulation_Output$Simulation)
-                                                                 )
-                                                               ]
-  save(Simulation_Output, file = x)
-})
-
-## closing cluster
-stopCluster(cl)
+# ### lightening data load by retaining no intermediate simulation steps
+# fs <- list.files(pattern = ".RData", Dir.Data, full.names = TRUE)
+# fsize <- sapply(fs, FUN = function(x){file.size(x)})
+# reduce_ls <- pbsapply(fs[fsize > 2e7], cl = cl, FUN = function(x){
+#   load(x)
+#   Simulation_Output$Simulation <- Simulation_Output$Simulation[c(1, 
+#                                                                  (length(Simulation_Output$Simulation)-1), 
+#                                                                  length(Simulation_Output$Simulation)
+#                                                                  )
+#                                                                ]
+#   save(Simulation_Output, file = x)
+# })

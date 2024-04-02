@@ -92,7 +92,7 @@ migration = 0.5 # sd of 0 centred normal for relocation of offspring
 Effect_Dis = 1 # distance at which link effect manifests
 verbose = FALSE # whether to produce simulation progress tracker in console
 ## File Naming
-RunName <- paste("Association", sd, sep = "_")
+RunName <- "Revision"
 
 ## Inference Settings --------------------------------------------------
 ### HMSC MCMC Settings
@@ -105,10 +105,15 @@ n_Grid <- 5
 
 ## Cluster for parallel computation ------------------------------------
 message("Registering Clusters")
-ncores <- parallel::detectCores()
+ncores <- ifelse(parallel::detectCores() > n_runs, n_runs, parallel::detectCores())
 cl <- parallel::makeCluster(ncores, outfile = "Log.txt")
 doSNOW::registerDoSNOW(cl)
 parallel::clusterExport(cl, varlist = ls(), envir = environment())
+
+# METADATA FOR RUN WRITING =============================================
+MetaF <- file.path(Dir.Data, paste0("META-", RunName, ".RData"))
+if(file.exists(MetaF)){stop("A run with this name has already been executed.")}
+save.image(file = MetaF)
 
 # DATA SIMULATION ======================================================
 source(file.path(Dir.Scripts, "DataSimulations.R"))
