@@ -30,7 +30,7 @@ CreateDir <- sapply(Dirs, function(x) if(!dir.exists(x)) dir.create(x))
 # INFERRED VS. INFERRED ========================================================
 InfComp <- pblapply(Inference_ls, FUN = function(Sim){
   mats <- Sim$mats$HMSC
-  mats$COOCCUR <- Sim$mats$COOCCUR
+  # mats$COOCCUR <- Sim$mats$COOCCUR
   comp_df <- expand.grid(names(mats), names(mats))
   comp_df$Difference <- apply(comp_df, MARGIN = 1, FUN = function(z){
     FUN_Matcomparison(mats[[z[1]]], mats[[z[2]]])
@@ -40,7 +40,9 @@ InfComp <- pblapply(Inference_ls, FUN = function(Sim){
 InfComp_df <- as.data.frame(do.call(rbind, InfComp))
 
 cases <- as.character(unique(InfComp_df$Var1))
-cases <- c("COOCCUR", rev(cases[startsWith(cases, "O")]), 
+cases <- c(
+  # "COOCCUR", 
+           rev(cases[startsWith(cases, "O")]),
            rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")]))
 
 InfComp_df$Var1 <- factor(InfComp_df$Var1, levels = cases)
@@ -110,6 +112,7 @@ Dissimilarities_df <- do.call(rbind,
                                 binding_df
                               })
 )
+Dissimilarities_df <- Dissimilarities_df[Dissimilarities_df$i != "COOCCUR", ]
 Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvNonReal", replacement = "Full True Network")
 Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvReal", replacement = "Realisable True Network")
 
@@ -184,6 +187,7 @@ Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
 })
 names(Detection_ls) <- names(Inference_ls)
 Detection_df <- do.call(rbind, Detection_ls)
+Detection_df <- Detection_df[Detection_df$Mode != "COOCCUR", ]
 
 ## detection classification
 message("Detection of different correct associations")
@@ -494,6 +498,7 @@ ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "
 ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Performance.", replacement = "[P]")
 ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Informed", replacement = "Clim")
 ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Naive", replacement = "")
+ErrorRates_df <- ErrorRates_df[ErrorRates_df$Approach != "COOCCUR", ]
 NonNA_count <- aggregate(Values ~ Approach + Metric, data = ErrorRates_df,
                          function(x) { sum(!is.na(x)) },
                          na.action = NULL)
@@ -504,7 +509,8 @@ ggplot(ErrorRates_df, aes(y = Values, x = Approach)) +
   geom_boxplot() +
   facet_wrap(~ factor(Metric, levels = c("TP", "FP", "MP", "TN", "FN", "MN", "TA", "FA", "MA")),
              ncol = 3, scales = "free") +
-  theme_bw() + labs(y = "Detection Rate [%]", x = "")
+  theme_bw() + labs(y = "Detection Rate [%]", x = "") + 
+  lims(y = c(0, 1.1))
 ggsave(filename = file.path(Dir.Exports, paste0("Fig_ErrorRates.png")),
        width = 32, height = 20, units = "cm")
 
@@ -809,23 +815,29 @@ PrepMat <- function(matrix = models_ls$mats$COOCCUR, edg_df2 = edg_df1, name = "
   model_df
 }
 
-COOCCUR_plot <- PrepMat()
-COOCCUR_plot <- ggplot(COOCCUR_plot, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
-  geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
-  coord_fixed() +
-  guides(fill = guide_colourbar(barwidth = 2,
-                                barheight = 15,
-                                title = "Inferred \n Association")) + 
-  geom_point(aes(shape = Correct)) + 
-  scale_shape_manual(values = c(26, 15)) + 
-  theme_bw() + 
-  theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
-  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") + 
-  guides(shape = "none") 
+# COOCCUR_plot <- PrepMat()
+# COOCCUR_plot <- ggplot(COOCCUR_plot, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
+#   geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
+#   coord_fixed() +
+#   guides(fill = guide_colourbar(barwidth = 2,
+#                                 barheight = 15,
+#                                 title = "Inferred \n Association")) + 
+#   geom_point(aes(shape = Correct)) + 
+#   scale_shape_manual(values = c(26, 15)) + 
+#   theme_bw() + 
+#   theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
+#   scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") + 
+#   guides(shape = "none") 
 
 model_df <- do.call(rbind, lapply(names(models_ls$mats$HMSC), FUN = function(x){
   PrepMat(matrix = models_ls$mats$HMSC[[x]], name = x)
 }))
+
+cases <- as.character(unique(model_df$Approach))
+cases <- c(
+  # "COOCCUR", 
+  rev(cases[startsWith(cases, "O")]),
+  rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")]))
 
 HMSC_plot <- ggplot(model_df, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
   geom_tile(color = "black", lwd = 0.5, linetype = 1) + 
@@ -836,18 +848,19 @@ HMSC_plot <- ggplot(model_df, aes(x = `Partner 1`, y = `Partner 2`, fill = Stren
   geom_point(aes(shape = Correct)) + 
   scale_shape_manual(values = c(26, 15)) + 
   theme_bw() + 
-  facet_wrap(~Approach, ncol = 3, dir="v") +
+  facet_wrap(~factor(Approach, levels = cases), ncol = 3, dir="v") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0)) + 
   scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") + 
   guides(shape = "none") 
 
 cowplot::plot_grid(
   cowplot::plot_grid(
-    TrueMatReal_gg, 
-    COOCCUR_plot
+    TrueMatReal_gg
+    # , 
+    # COOCCUR_plot
     ),
   HMSC_plot + theme(plot.margin = unit(c(0,0,0,0), "cm")), 
-  ncol = 1, rel_heights = c(1.7, 3)
+  ncol = 1, rel_heights = c(2.5, 3), labels = "AUTO"
 )
 
 ggsave(filename = file.path(Dir.Concept, "Fig_Inference.png"), 
