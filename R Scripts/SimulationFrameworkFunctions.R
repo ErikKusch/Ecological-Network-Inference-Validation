@@ -160,7 +160,8 @@ SIM.Comp <- function(d0 = 0.4,
   t <- 0 # start time at 1
   names(ID_ls)[length(ID_ls)] <- t
   ## progress bar
-  pb <- txtProgressBar(min = 0, max = t_max, style = 3)
+  if(!verbose){pb <- txtProgressBar(min = 0, max = t_max, style = 3)}
+  TimeStart <- Sys.time()
   ## simulation loop over time steps
   while(t < t_max){
     # if(verbose){print(t)}
@@ -226,7 +227,17 @@ SIM.Comp <- function(d0 = 0.4,
            file = paste0("TEMP_SIM_", seed, ".RData"))
     }
     ## update progress
-    setTxtProgressBar(pb, t)
+    if(!verbose){setTxtProgressBar(pb, t)}
+    # estimator of finish
+    if(verbose){
+      TimeEnd <- Sys.time()
+      PercLeft <- (t_max-t)/t_max
+      TimeElapsed <- TimeEnd-TimeStart
+      TimeRemaining <- TimeElapsed/(1-PercLeft)*PercLeft
+      EstimatedFinish <- TimeStart+TimeRemaining
+      cat('\r', round(1-PercLeft, 2), "%  - ", "Estimated time of finishing this simulation =", format(EstimatedFinish,'%Y-%m-%d; %H:%M:%S'))
+      flush.console() 
+    }
     if(nrow(ID_df) == 0){warning("All species went extinct"); break}
   }
   ID_ls <- c(ID_ls, list(ID_df))
@@ -365,26 +376,26 @@ FUN.SimulationFramework <- function(
 ){
   call_info <- match.call()
   
-  message("#### Package Loading")
-  install.load.package <- function(x) {
-    if (!require(x, character.only = TRUE))
-      install.packages(x, repos='http://cran.us.r-project.org')
-    require(x, character.only = TRUE)
-  }
-  package_vec <- c(
-    "randcorr", # for random correlation matrices to be used as adjacency matrices
-    "igraph" # for representing adjacency matrices as graphs
-  )
-  sapply(package_vec, install.load.package)
+  # message("#### Package Loading")
+  # install.load.package <- function(x) {
+  #   if (!require(x, character.only = TRUE))
+  #     install.packages(x, repos='http://cran.us.r-project.org')
+  #   require(x, character.only = TRUE)
+  # }
+  # package_vec <- c(
+  #   "randcorr", # for random correlation matrices to be used as adjacency matrices
+  #   "igraph" # for representing adjacency matrices as graphs
+  # )
+  # sapply(package_vec, install.load.package)
   
-  message("#### Network Creation")
+  if(verbose){message("#### Network Creation")}
   Network_igraph <- FUN.RandNetwork(n_spec = n_spec, 
                                     NetworkType = NetworkType,
                                     Sparcity = Sparcity,
                                     MaxStrength = MaxStrength, 
                                     seed = seed)
   
-  message("#### Initial Individual Creation")
+  if(verbose){message("#### Initial Individual Creation")}
   RandInd_ls <- FUN.RandIndividuals(n_spec = length(V(Network_igraph)), 
                                     n_individuals = n_individuals,
                                     n_mode = n_mode,
@@ -394,12 +405,12 @@ FUN.SimulationFramework <- function(
   ID_df <- RandInd_ls[[1]]
   Trait_means <- RandInd_ls[[2]]
   
-  message("#### Carrying Capacity Creation")
+  if(verbose){message("#### Carrying Capacity Creation")}
   k_vec <- FUN.RandK(n_spec = length(V(Network_igraph)), 
                      k_range = k_range, 
                      seed = seed)
   
-  message("#### Simulation Run")
+  if(verbose){message("#### Simulation Run")}
   Sim.Output <- SIM.Comp(d0 = d0, b0 = b0,
                          env.xy = env.xy,
                          k_vec = k_vec, 
