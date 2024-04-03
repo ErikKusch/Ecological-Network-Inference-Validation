@@ -36,6 +36,7 @@ package_vec <- c(
   "foreach",
   "doSNOW",
   "pbapply",
+  "randcorr",
   # Inference Packages
   "Hmsc", # for HMSC models
   # "cooccur", # for COOCCUR models
@@ -46,7 +47,7 @@ package_vec <- c(
   "ggplot2", # for plotting
   "tidybayes", # for plotting
   "brms", 
-  "rethinking", 
+  # "rethinking", 
   "reshape2", 
   "cowplot", 
   "scales", 
@@ -87,7 +88,7 @@ b0 = 0.6 # base birth rate
 env.xy = function(x = NULL, y = NULL){x} #environmental maladpation function
 t_max = 20 # simulation time
 t_inter = 1 # when to record data
-sd = 5 # environmental maladaption SD, higher = more permissive environment
+Env_sd = 5 # environmental maladaption SD, higher = more permissive environment
 migration = 0.5 # sd of 0 centred normal for relocation of offspring
 Effect_Dis = 1 # distance at which link effect manifests
 verbose = FALSE # whether to produce simulation progress tracker in console
@@ -105,18 +106,20 @@ n_Grid <- 5
 
 ## Cluster for parallel computation ------------------------------------
 message("Registering Clusters")
-ncores <- ifelse(parallel::detectCores() > n_runs, n_runs, parallel::detectCores())
-cl <- parallel::makeCluster(ncores, outfile = "Log.txt")
-doSNOW::registerDoSNOW(cl)
+ncores <- 100 # ifelse(parallel::detectCores() > n_runs, n_runs, parallel::detectCores())
+cl <- parallel::makeCluster(ncores
+                            # , outfile = "Log.txt"
+                            )
 parallel::clusterExport(cl, varlist = ls(), envir = environment())
+doSNOW::registerDoSNOW(cl)
 
 # METADATA FOR RUN WRITING =============================================
 MetaF <- file.path(Dir.Data, paste0("META-", RunName, ".RData"))
 if(file.exists(MetaF)){stop("A run with this name has already been executed.")}
-save.image(file = MetaF)
 
 # DATA SIMULATION ======================================================
 source(file.path(Dir.Scripts, "DataSimulations.R"))
+save.image(file = MetaF)
 
 # ASSOCIATION INFERENCE ================================================
 source(file.path(Dir.Scripts, "Inference.R"))
