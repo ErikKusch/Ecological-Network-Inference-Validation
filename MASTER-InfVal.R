@@ -107,7 +107,8 @@ n_Grid <- 5
 
 ## Cluster for parallel computation ------------------------------------
 message("Registering Clusters")
-ncores <- 100 # ifelse(parallel::detectCores() > n_runs, n_runs, parallel::detectCores())
+DesiredCores <- ifelse(n_runs > 100, 100, n_runs)
+ncores <- ifelse(parallel::detectCores() > DesiredCores, DesiredCores, parallel::detectCores())
 cl <- parallel::makeCluster(ncores
                             # , outfile = "Log.txt"
                             )
