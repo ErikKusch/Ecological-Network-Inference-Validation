@@ -9,25 +9,6 @@
 #' ####################################################################### #
 message("Compiling Results")
 
-# PREAMBLE =====================================================================
-# source("Inference.R")
-# Inference_ls <- pblapply(
-#   list.files(Dir.Exports, pattern = "Association_.*.RData", full.names = TRUE),
-#   FUN = function(x){
-#     load(x)
-#     models_ls
-#   })
-# names(Inference_ls) <- list.files(Dir.Exports, pattern = "Association_.*.RData")
-# OneSD <- unlist(lapply(strsplit(names(Inference_ls), split = "_"), "[[", 2)) == 1
-# Inference_ls <- Inference_ls[OneSD]
-# package_vec <- c(package_vec, "brms", "rethinking", "reshape2", 
-#                  "cowplot", "scales", "ggnewscale")
-# sapply(package_vec, install.load.package)
-# Dir.Base <- getwd() # read out the project directory
-# Dir.Concept <- file.path(Dir.Base, "Concept")
-# Dirs <- c(Dir.Concept)
-# CreateDir <- sapply(Dirs, function(x) if(!dir.exists(x)) dir.create(x))
-
 # INFERRED VS. INFERRED ========================================================
 print("INFERRED VS. INFERRED")
 InfComp <- pblapply(Inference_ls, FUN = function(Sim){
