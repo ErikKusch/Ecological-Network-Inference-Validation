@@ -49,3 +49,4 @@ vignettes/*.pdf
 Logo/*
 Alias.png
 .DS_Store
+/Container
