@@ -11,6 +11,8 @@ message("Running Association Inference")
 
 # DATA =====================================================================
 Data_fs <- list.files(Dir.Data, pattern = ".RData")
+Data_fs <- Data_fs[grepl(RunName, Data_fs)]
+Data_fs <- Data_fs[!grepl("META", Data_fs)]
 
 # INFERENCE FUNCTION =======================================================
 FUN.Inference <- function(Simulation_Output = NULL, 
@@ -403,7 +405,6 @@ Inference_ls <- pblapply(Data_fs,
                              if(nrow(Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]) == 0){
                                models_ls <- NA
                              }else{
-                               
                                models_ls <- FUN.Inference(Simulation_Output = Simulation_Output,
                                                           Dir.Exports = Dir.Exports,
                                                           Dir.Models = Dir.Models,
