@@ -4,7 +4,7 @@ Part of Chapter 3 of my PhD project.
 ## Abstract
 1.	Rendering ecological networks is vital to assess ecosystem resilience to biodiversity loss and to predict community assemblies. The labour-intensive sampling requirements of ecological networks have spurred the creation of network inference methodology. Recent research has identified inconsistencies in networks inferred using different approaches thus necessitating quantification of inference performance to facilitate choice of network inference approach.
 2.	Here we develop a data simulation method which generates data products fit for network inference. The simulation framework we present here can be parameterised using real-world data. (e.g., biological interactions observed in-situ and bioclimatic niche preferences). In addition, our simulation framework supports directed and undirected links in ecological networks as well as exporting of time-series or spatial products fit for currently available ecological network inference approaches. Finally, we develop novel analysis procedures with which to explore inference and detection probabilities of association types of different identity and sign with respect to bioclimatic niche preferences and association strength between species. Consequently, we present a workflow for quantification of network inference reliability.
-3.	Applying our workflow to two well-established ecological interaction network inference methods – HMSC and COOCCUR, we identify a concerningly large range in accuracy of inferred networks as compared to true, realisable association networks confirming that choice of network inference approach is a non-trivial decision. These differences in inference accuracy are governed by a paradigm of input data types and environmental parameter estimation as previously suggested with network inference approaches accounting for environmental gradients and leveraging more nuanced biological inputs (i.e., HMSC) outperforming simpler approaches (i.e., COOCCUR) in inference accuracy. 
+3.	Applying our workflow to a well-established ecological interaction network inference methods (HMSC), we identify a concerningly large range in accuracy of inferred networks as compared to true, realisable association networks. These differences in inference accuracy are governed by a paradigm of input data types and environmental parameter estimation as previously suggested with network inference approaches accounting for environmental gradients and leveraging more nuanced biological inputs outperforming simpler approaches in inference accuracy. 
 4. With this study, we provide the groundwork with which to validate and compare ecological network inference methods, and vastly increase our ability to understand and predict species biodiversity across space and time.
 
 ## Research Questions
@@ -15,7 +15,7 @@ How performant are network inference approaches and what affects their accuracy?
 Erik Kusch (erik.kusch@nhm.uio.no, [OrcID](https://orcid.org/my-orcid?orcid=0000-0002-4984-7646))  
 
 ### Collaborators
-- Anna C. Vinton ([OrcID](https://orcid.org/0000-0002-8279-1736)
+- Anna C. Vinton ([OrcID](https://orcid.org/0000-0002-8279-1736))
 
 ## Key Findings
 1. Using co-performance or co-abundance rather than the traditional co-occurrence inputs improves inference accuracy
