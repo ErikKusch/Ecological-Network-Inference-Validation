@@ -231,12 +231,14 @@ SIM.Comp <- function(d0 = 0.4,
     # estimator of finish
     if(verbose){
       TimeEnd <- Sys.time()
-      PercLeft <- (t_max-t)/t_max
-      TimeElapsed <- TimeEnd-TimeStart
-      TimeRemaining <- TimeElapsed/(1-PercLeft)*PercLeft
-      EstimatedFinish <- TimeStart+TimeRemaining
-      cat('\r', round(1-PercLeft, 2), "%  - ", "Estimated time of finishing this simulation =", format(EstimatedFinish,'%Y-%m-%d; %H:%M:%S'))
-      flush.console() 
+      PercRem <- ((t_max-t)/t_max)*100
+      PercDone <- 100-PercRem
+      if(PercDone > 100){PercDone <- 100}
+      TimeElapsed <- difftime(TimeEnd, TimeStart, units = "secs")
+      TimeRemaining <- (TimeElapsed/PercDone)*(100-PercDone)
+      # EstimatedFinish <- TimeStart+TimeRemaining
+      cat('\r', sprintf("%05s", format(round(PercDone, 2), nsmall = 2)), "%  - ", paste("Estimated time remaining =", round(lubridate::seconds_to_period(TimeRemaining), 0), "         "))
+      flush.console()
     }
     if(nrow(ID_df) == 0){warning("All species went extinct"); break}
   }

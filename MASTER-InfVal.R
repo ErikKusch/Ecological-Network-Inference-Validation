@@ -37,6 +37,7 @@ package_vec <- c(
   "doSNOW",
   "pbapply",
   "randcorr",
+  "lubridate",
   # Inference Packages
   "Hmsc", # for HMSC models
   # "cooccur", # for COOCCUR models
