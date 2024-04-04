@@ -138,7 +138,8 @@ SIM.Comp <- function(d0 = 0.4,
                      ID_df,
                      Env_range,
                      seed = 42,
-                     verbose = TRUE # whether to print progress in time as current time
+                     verbose = TRUE, # whether to print progress in time as current time
+                     RunName = ""
 ){
   call_info <- match.call()
   set.seed(seed)
@@ -224,7 +225,7 @@ SIM.Comp <- function(d0 = 0.4,
       names(ID_ls)[length(ID_ls)] <- t
       saveobj <- list(Call = call_info, Network = Network_igraph, K = k_vec, Simulation = ID_ls)
       save(saveobj, 
-           file = paste0("TEMP_SIM_", seed, ".RData"))
+           file = paste0("TEMP_SIM_", RunName, "-", seed, ".RData"))
     }
     ## update progress
     if(!verbose){setTxtProgressBar(pb, t)}
@@ -244,7 +245,7 @@ SIM.Comp <- function(d0 = 0.4,
   }
   ID_ls <- c(ID_ls, list(ID_df))
   names(ID_ls)[length(ID_ls)] <- t
-  unlink(paste0("TEMP_SIM_", seed, ".RData"))
+  unlink(paste0("TEMP_SIM_", RunName, "-", seed, ".RData"))
   return(ID_ls)
 }
 
@@ -374,7 +375,8 @@ FUN.SimulationFramework <- function(
     sd = 2.5,
     migration = 0.2,
     Effect_Dis = 0.5,
-    verbose = TRUE
+    verbose = TRUE,
+    RunName = ""
 ){
   call_info <- match.call()
   
@@ -425,7 +427,8 @@ FUN.SimulationFramework <- function(
                          Effect_Dis = Effect_Dis,
                          Network_igraph = Network_igraph,
                          verbose = verbose,
-                         seed = seed
+                         seed = seed,
+                         RunName = RunName
   )
   
   message("#### Returning Output")

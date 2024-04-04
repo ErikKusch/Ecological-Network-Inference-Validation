@@ -39,7 +39,8 @@ foreach(ITER = 1:n_runs, .options.snow = opts) %dopar% {
       sd = Env_sd,
       migration = migration,
       Effect_Dis = Effect_Dis,
-      verbose = verbose
+      verbose = verbose,
+      RunName = RunName
     )
     save(Simulation_Output, file = file.path(Dir.Data, paste0(RunName, "_SIM_", ITER, ".RData")))
   }
