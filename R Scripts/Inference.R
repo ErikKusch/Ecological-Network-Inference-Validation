@@ -182,18 +182,33 @@ FUN.Inference <- function(Simulation_Output = NULL,
   
   ## Models
   models_ls <- lapply(names(Y), FUN = function(z){
-    InformedMod <- Hmsc(Y = Y[[z]], XData = X$Informed,  XFormula = XFormula,
-                        TrData = Tr, TrFormula = TrFormula,
-                        distr = "poisson",
-                        studyDesign = studyDesign,
-                        ranLevels = {list("GridID" = rL.site)}
-    )
-    NaiveMod <- Hmsc(Y = Y[[z]], XData = X$Naive,  XFormula = ~1,
-                     TrData = NULL, TrFormula = NULL,
-                     distr = "poisson",
-                     studyDesign = studyDesign,
-                     ranLevels = {list("GridID" = rL.site)}
-    )
+    if(z == "Occurrence"){
+      InformedMod <- Hmsc(Y = Y[[z]], XData = X$Informed,  XFormula = XFormula,
+                          TrData = Tr, TrFormula = TrFormula,
+                          distr = "probit",
+                          studyDesign = studyDesign,
+                          ranLevels = {list("GridID" = rL.site)}
+      )
+      NaiveMod <- Hmsc(Y = Y[[z]], XData = X$Naive,  XFormula = ~1,
+                       TrData = NULL, TrFormula = NULL,
+                       distr = "probit",
+                       studyDesign = studyDesign,
+                       ranLevels = {list("GridID" = rL.site)}
+      )
+    }else{
+      InformedMod <- Hmsc(Y = Y[[z]], XData = X$Informed,  XFormula = XFormula,
+                          TrData = Tr, TrFormula = TrFormula,
+                          distr = "poisson",
+                          studyDesign = studyDesign,
+                          ranLevels = {list("GridID" = rL.site)}
+      )
+      NaiveMod <- Hmsc(Y = Y[[z]], XData = X$Naive,  XFormula = ~1,
+                       TrData = NULL, TrFormula = NULL,
+                       distr = "poisson",
+                       studyDesign = studyDesign,
+                       ranLevels = {list("GridID" = rL.site)}
+      )
+      }
     models_ls <- list(InformedMod,NaiveMod)
     names(models_ls) <- c("Informed","Naive")
     models_ls
