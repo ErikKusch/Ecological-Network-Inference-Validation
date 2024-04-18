@@ -52,7 +52,8 @@ package_vec <- c(
   "reshape2", 
   "cowplot", 
   "scales", 
-  "ggnewscale"
+  "ggnewscale",
+  "ggpubr"
 )
 sapply(package_vec, install.load.package)
 
@@ -121,10 +122,10 @@ if(file.exists(MetaF)){stop("A run with this name has already been executed.")}
 
 # DATA SIMULATION ======================================================
 source(file.path(Dir.Scripts, "DataSimulations.R"))
-save.image(file = MetaF)
 
 # ASSOCIATION INFERENCE ================================================
 source(file.path(Dir.Scripts, "Inference.R"))
 
 # POST-INFERENCE ANALYSES ==============================================
 source(file.path(Dir.Scripts, "Results.R"))
+save.image(file = MetaF)
