@@ -129,9 +129,10 @@ OSBP_All_gg <- ggplot(Dissimilarities_df[Dissimilarities_df$j == "Realisable Tru
 ) + 
   geom_violin() +
   geom_boxplot(width = 0.3) +
-  stat_compare_means(comparisons = WithinCompare) + 
+  stat_compare_means(comparisons = WithinCompare, 
+                     label.y = max(Dissimilarities_df[Dissimilarities_df$j == "Realisable True Network","Accuracy"])+4) + 
   facet_wrap(~j, scales = "free_x") + 
-  theme_bw() + labs(x = "", y = "Inference Accuracy")
+  theme_bw() + labs(x = "", y = "Inference Accuracy [%]")
 
 AcrossCompare <- list(c("[O]", "[A]"),
                       c("[O]", "[P]"),
@@ -144,7 +145,7 @@ OSBP_NonClim_gg <- ggplot(Dissimilarities_df[(Dissimilarities_df$j == "Realisabl
   geom_boxplot(width = 0.3) +
   stat_compare_means(comparisons = AcrossCompare) + 
   facet_wrap(~j, scales = "free_x") + 
-  theme_bw() + labs(x = "", y = "Inference Accuracy")
+  theme_bw() + labs(x = "", y = "Inference Accuracy [%]")
 
 AcrossCCompare <- list(c("[O]Clim", "[A]Clim"),
                        c("[O]Clim", "[P]Clim"),
@@ -157,7 +158,7 @@ OSBP_Clim_gg <- ggplot(Dissimilarities_df[(Dissimilarities_df$j == "Realisable T
   geom_boxplot(width = 0.3) +
   stat_compare_means(comparisons = AcrossCCompare) + 
   facet_wrap(~j, scales = "free_x") + 
-  theme_bw() + labs(x = "", y = "Inference Accuracy")
+  theme_bw() + labs(x = "", y = "Inference Accuracy [%]")
 
 OSBP_gg <- plot_grid(OSBP_All_gg, 
                      plot_grid(OSBP_NonClim_gg, OSBP_Clim_gg, ncol = 2, labels = c("B", "C")),
