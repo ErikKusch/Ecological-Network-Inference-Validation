@@ -25,8 +25,8 @@ InfComp_df <- as.data.frame(do.call(rbind, InfComp))
 cases <- as.character(unique(InfComp_df$Var1))
 cases <- c(
   # "COOCCUR", 
-           rev(cases[startsWith(cases, "O")]),
-           rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")]))
+  rev(cases[startsWith(cases, "O")]),
+  rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")]))
 
 InfComp_df$Var1 <- factor(InfComp_df$Var1, levels = cases)
 InfComp_df$Var2 <- factor(InfComp_df$Var2, levels = cases)
@@ -83,7 +83,7 @@ ggplot(mapping = aes(x = factor(Var1, levels = cases), y = factor(Var2, levels =
   theme_bw() + 
   labs(x = "", y = "", title = "Inference Similarity")
 
-ggsave(filename = file.path(Dir.Exports, "Fig_InfVInf.png"), 
+ggsave(filename = file.path(Dir.Exports, paste0(RunName, "-Fig_InfVInf.png")), 
        width = 16, height = 9, units = "cm")
 
 # WHOLE-NETWORK ACCURACY =======================================================
@@ -117,11 +117,132 @@ OS_gg <- ggplot(Dissimilarities_df[Dissimilarities_df$j == "Realisable True Netw
   facet_wrap(~j, scales = "free_x") + 
   theme_bw() + labs(y = "", x = "Inference Accuracy")
 OS_gg
-ggsave(OS_gg, filename = file.path(Dir.Exports, "Fig_OS.png"), 
+ggsave(OS_gg, filename = file.path(Dir.Exports, paste0(RunName, "Fig_OS.png")), 
        width = 16, height = 12, units = "cm")
 
-# DETECTION REGRESSION =========================================================
-message("Detection of Positive, Negative, and Absent Associations")
+
+WithinCompare <- list(c("[O]", "[O]Clim"),
+                      c("[A]", "[A]Clim"),
+                      c("[P]", "[P]Clim"))
+OSBP_All_gg <- ggplot(Dissimilarities_df[Dissimilarities_df$j == "Realisable True Network",], 
+                      aes(y = Accuracy, x = factor(i, levels = cases))
+) + 
+  geom_violin() +
+  geom_boxplot(width = 0.3) +
+  stat_compare_means(comparisons = WithinCompare) + 
+  facet_wrap(~j, scales = "free_x") + 
+  theme_bw() + labs(x = "", y = "Inference Accuracy")
+
+AcrossCompare <- list(c("[O]", "[A]"),
+                      c("[O]", "[P]"),
+                      c("[A]", "[P]"))
+OSBP_NonClim_gg <- ggplot(Dissimilarities_df[(Dissimilarities_df$j == "Realisable True Network" & 
+                                                !grepl(pattern = "Clim", Dissimilarities_df$i)),], 
+                          aes(y = Accuracy, x = factor(i, levels = cases))
+) + 
+  geom_violin() +
+  geom_boxplot(width = 0.3) +
+  stat_compare_means(comparisons = AcrossCompare) + 
+  facet_wrap(~j, scales = "free_x") + 
+  theme_bw() + labs(x = "", y = "Inference Accuracy")
+
+AcrossCCompare <- list(c("[O]Clim", "[A]Clim"),
+                       c("[O]Clim", "[P]Clim"),
+                       c("[A]Clim", "[P]Clim"))
+OSBP_Clim_gg <- ggplot(Dissimilarities_df[(Dissimilarities_df$j == "Realisable True Network" & 
+                                             grepl(pattern = "Clim", Dissimilarities_df$i)),], 
+                       aes(y = Accuracy, x = factor(i, levels = cases))
+) + 
+  geom_violin() +
+  geom_boxplot(width = 0.3) +
+  stat_compare_means(comparisons = AcrossCCompare) + 
+  facet_wrap(~j, scales = "free_x") + 
+  theme_bw() + labs(x = "", y = "Inference Accuracy")
+
+OSBP_gg <- plot_grid(OSBP_All_gg, 
+                     plot_grid(OSBP_NonClim_gg, OSBP_Clim_gg, ncol = 2, labels = c("B", "C")),
+                     ncol = 1, labels = c("A", ""))
+ggsave(OSBP_gg, filename = file.path(Dir.Exports, paste0(RunName, "Fig_OSBP.png")), 
+       width = 16*2, height = 12*2, units = "cm")
+
+# ERROR RATES ==================================================================
+print("INFERENCE ERROR RATES")
+ErrorRates_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
+  # SimName <- names(Inference_ls)[[98]]
+  x <- Inference_ls[[SimName]]
+  
+  ## matrices
+  True_mat <- sign(x$mats$True$Realised)
+  InferenceMats_ls <- c(x$mats$HMSC, list(COOCCUR = x$mats$COOCCUR))
+  
+  do.call(rbind, lapply(names(InferenceMats_ls),
+                        function(y){
+                          data.frame(
+                            Values = c(
+                              # true positive associations; how many of the inferred positive associations are correctly identified as such? - NaN means no positives in the inferred matrix
+                              TP = sum((True_mat + InferenceMats_ls[[y]]) == 2, na.rm = TRUE)/
+                                sum(InferenceMats_ls[[y]] == 1, na.rm = TRUE), 
+                              # true negative associations; how many of the inferred negative associations are correctly identified as such? - NaN means no negatives in the inferred matrix
+                              TN = sum((True_mat + InferenceMats_ls[[y]]) == -2, na.rm = TRUE)/
+                                sum(InferenceMats_ls[[y]] == -1, na.rm = TRUE),
+                              # true absent; how many of the inferred absent interactions are correctly identified as such? - NaN means no absents in the inferred matrix
+                              TA = sum((True_mat == 0) + (InferenceMats_ls[[y]] == 0) == 2, na.rm = TRUE)/
+                                sum(InferenceMats_ls[[y]] == 0, na.rm = TRUE),
+                              
+                              # falsely inferred positive; how many of the inferred positive associations are incorrectly identified as such?
+                              FP = sum((True_mat != 1) + (InferenceMats_ls[[y]] == 1) == 2, na.rm = TRUE)/
+                                sum(InferenceMats_ls[[y]] == 1, na.rm = TRUE), 
+                              # falsely inferred negative; how many of the inferred negative associations are incorrectly identified as such?
+                              FN = sum((True_mat != -1) + (InferenceMats_ls[[y]] == -1) == 2, na.rm = TRUE)/
+                                sum(InferenceMats_ls[[y]] == -1, na.rm = TRUE),
+                              # false absent; how many of the inferred absent interactions are correctly identified as such?
+                              FA = sum((True_mat != 0) + (InferenceMats_ls[[y]] == 0) == 2, na.rm = TRUE)/
+                                sum(InferenceMats_ls[[y]] == 0, na.rm = TRUE),
+                              
+                              # true positive links which were not inferred; how many of the true positive associations were not inferred?
+                              MP = (sum((True_mat == 1) + (InferenceMats_ls[[y]] != 1) == 2, na.rm = TRUE)/
+                                      sum(True_mat == 1, na.rm = TRUE)), 
+                              # true negative links which were not inferred; how many of the true negative associations were not inferred?
+                              MN = (sum((True_mat == -1) + (InferenceMats_ls[[y]] != -1) == 2, na.rm = TRUE)/
+                                      sum(True_mat == -1, na.rm = TRUE)),
+                              # true absent links which were not inferred; how many of the true absent associations were not inferred?
+                              MA = (sum((True_mat == 0) + (InferenceMats_ls[[y]] != 0) == 2, na.rm = TRUE)/
+                                      sum(True_mat == 0, na.rm = TRUE))
+                              
+                            ),
+                            Metric = c("TP", "TN", "TA", "FP", "FN", "FA", "MP", "MN", "MA"),
+                            # Identifier
+                            Approach = y,
+                            SimName = SimName
+                          )
+                        }))
+})
+ErrorRates_df <- do.call(rbind, ErrorRates_ls)
+ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Occurrence.", replacement = "[O]")
+ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Abundance.", replacement = "[A]")
+ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Performance.", replacement = "[P]")
+ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Informed", replacement = "Clim")
+ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Naive", replacement = "")
+ErrorRates_df <- ErrorRates_df[ErrorRates_df$Approach != "COOCCUR", ]
+NonNA_count <- aggregate(Values ~ Approach + Metric, data = ErrorRates_df,
+                         function(x) { sum(!is.na(x)) },
+                         na.action = NULL)
+colnames(NonNA_count)[3] <- "n"
+
+ER_gg <- ggplot(ErrorRates_df, aes(y = Values, x = factor(Approach, levels = cases))) +
+  geom_text(data = NonNA_count, aes(x = factor(Approach, levels = cases), y = 1.1, label = n)) + 
+  geom_boxplot() +
+  facet_wrap(~ factor(Metric, levels = c("TP", "FP", "MP", "TN", "FN", "MN", "TA", "FA", "MA")),
+             ncol = 3, scales = "free") +
+  theme_bw() + labs(y = "Detection Rate [%]", x = "") + 
+  lims(y = c(0, 1.1)) + 
+  scale_y_continuous(breaks = seq(0,1, 0.1))
+ggsave(ER_gg, filename = file.path(Dir.Exports, paste0(RunName, "Fig_ErrorRates.png")),
+       width = 32, height = 20, units = "cm")
+
+# BAEYSIAN MODELS ==============================================================
+print("BAYESIAN MODEL PREPAPARTION")
+# message("Detection of Positive, Negative, and Absent Associations")
 Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
   # SimName <- names(Inference_ls)[1]
   x <- Inference_ls[[SimName]]
@@ -129,7 +250,8 @@ Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
   ## matrices
   True_mat <- abs(x$mats$True$Realised)
   Mats_ls <- x$mats$True
-  InferenceMats_ls <- c(x$mats$HMSC, list(COOCCUR = x$mats$COOCCUR))
+  InferenceMats_ls <- x$mats$HMSC
+  # c(x$mats$HMSC, list(COOCCUR = x$mats$COOCCUR))
   
   ## trait diff
   Traits <- aggregate(Trait ~ Species, data = x$ID_df, FUN = mean)
@@ -170,148 +292,151 @@ Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
 })
 names(Detection_ls) <- names(Inference_ls)
 Detection_df <- do.call(rbind, Detection_ls)
-Detection_df <- Detection_df[Detection_df$Mode != "COOCCUR", ]
+# Detection_df <- Detection_df[Detection_df$Mode != "COOCCUR", ]
 
 ## detection classification
-message("Detection of different correct associations")
-DetectionModels_df <- lapply(X = unique(Detection_df$Mode), 
-                             FUN = function(Model){
-                               print(paste("########", Model))
-                               model_df <- Detection_df[Detection_df$Mode == Model, ]
-                               
-                               ## Correct Identification of Positive Associations -----------------------------
-                               print("Models of Positive Associations")
-                               if(file.exists(file.path(Dir.Exports, paste0("Bayes_Model_Positive_", Model,".RData")))){
-                                 load(file.path(Dir.Exports, paste0("Bayes_Model_Positive_", Model,".RData")))
-                               }else{
-                                 Bayes_Model_Positive <- brm(formula = CorrectPos ~Magnitude * EnvDiff,
+print("DETECTION REGRESSION - likelihood of correct inference")
+# message("Detection of different correct associations")
+DetectionModels_df <- pblapply(X = unique(Detection_df$Mode), 
+                               cl = length(unique(Detection_df$Mode)),
+                               FUN = function(Model){
+                                 # print(paste("########", Model))
+                                 model_df <- Detection_df[Detection_df$Mode == Model, ]
+                                 
+                                 ## Correct Identification of Positive Associations -----------------------------
+                                 # print("Models of Positive Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Positive_", Model,".RData")))){
+                                   load(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Positive_", Model,".RData")))
+                                 }else{
+                                   Bayes_Model_Positive <- brm(formula = CorrectPos ~Magnitude * EnvDiff,
+                                                               data = model_df,
+                                                               family = bernoulli(link = "logit"),
+                                                               warmup = nWarmup,
+                                                               iter = nSamples,
+                                                               chains = nChains,
+                                                               cores = 1,
+                                                               seed = 42)
+                                   save(Bayes_Model_Positive, 
+                                        file = file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Positive_", Model,".RData")))
+                                 }
+                                 
+                                 ## Correct Identification of Negative Associations -----------------------------
+                                 # print("Models of Negative Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Negative_", Model,".RData")))){
+                                   load(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Negative_", Model,".RData")))
+                                 }else{
+                                   Bayes_Model_Negative <- brm(formula = CorrectNeg ~Magnitude * EnvDiff,
+                                                               data = model_df,
+                                                               family = bernoulli(link = "logit"),
+                                                               warmup = nWarmup,
+                                                               iter = nSamples,
+                                                               chains = nChains,
+                                                               cores = 1,
+                                                               seed = 42)
+                                   save(Bayes_Model_Negative, 
+                                        file = file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Negative_", Model,".RData")))
+                                 }
+                                 
+                                 ## Correct Identification of Absent Associations -------------------------------
+                                 # print("Models of Absent Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))){
+                                   load(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))
+                                 }else{
+                                   Bayes_Model_Absent <- brm(formula = CorrectAbsent ~ Magnitude * EnvDiff,
                                                              data = model_df,
                                                              family = bernoulli(link = "logit"),
                                                              warmup = nWarmup,
                                                              iter = nSamples,
                                                              chains = nChains,
-                                                             cores = nChains,
+                                                             cores = 1,
                                                              seed = 42)
-                                 save(Bayes_Model_Positive, 
-                                      file = file.path(Dir.Exports, paste0("Bayes_Model_Positive_", Model,".RData")))
-                               }
-                               
-                               ## Correct Identification of Negative Associations -----------------------------
-                               print("Models of Negative Associations")
-                               if(file.exists(file.path(Dir.Exports, paste0("Bayes_Model_Negative_", Model,".RData")))){
-                                 load(file.path(Dir.Exports, paste0("Bayes_Model_Negative_", Model,".RData")))
-                               }else{
-                                 Bayes_Model_Negative <- brm(formula = CorrectNeg ~Magnitude * EnvDiff,
-                                                             data = model_df,
-                                                             family = bernoulli(link = "logit"),
-                                                             warmup = nWarmup,
-                                                             iter = nSamples,
-                                                             chains = nChains,
-                                                             cores = nChains,
-                                                             seed = 42)
-                                 save(Bayes_Model_Negative, 
-                                      file = file.path(Dir.Exports, paste0("Bayes_Model_Negative_", Model,".RData")))
-                               }
-                               
-                               ## Correct Identification of Absent Associations -------------------------------
-                               print("Models of Absent Associations")
-                               if(file.exists(file.path(Dir.Exports, paste0("Bayes_Model_Absent_", Model,".RData")))){
-                                 load(file.path(Dir.Exports, paste0("Bayes_Model_Absent_", Model,".RData")))
-                               }else{
-                                 Bayes_Model_Absent <- brm(formula = CorrectAbsent ~ Magnitude * EnvDiff,
-                                                                data = model_df,
-                                                                family = bernoulli(link = "logit"),
-                                                                warmup = nWarmup,
-                                                                iter = nSamples,
-                                                                chains = nChains,
-                                                                cores = nChains,
-                                                                seed = 42)
-                                 save(Bayes_Model_Absent,
-                                      file = file.path(Dir.Exports, paste0("Bayes_Model_Absent_", Model,".RData")))
-                               }
-                               list(Pos = Bayes_Model_Positive,
-                                    Neg = Bayes_Model_Negative,
-                                    Abs = Bayes_Model_Absent)
-                             })
+                                   save(Bayes_Model_Absent,
+                                        file = file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))
+                                 }
+                                 list(Pos = Bayes_Model_Positive,
+                                      Neg = Bayes_Model_Negative,
+                                      Abs = Bayes_Model_Absent)
+                               })
 names(DetectionModels_df) <- unique(Detection_df$Mode)
 
 ## inference classification
-message("Inference of different associations (correct or not)")
-InferenceModels_df <- lapply(X = unique(Detection_df$Mode), 
-                             FUN = function(Model){
-                               print(paste("########", Model))
-                               model_df <- Detection_df[Detection_df$Mode == Model, ]
-                               model_df <- model_df[!is.na(model_df$SignInferred), ]
-                               model_df$Magnitude <- model_df$Magnitude*model_df$SignTrue
-                               
-                               ## Correct Identification of Positive Associations -----------------------------
-                               print("Models of Positive Associations")
-                               if(file.exists(file.path(Dir.Exports, paste0("BayesInf_Model_Positive_", Model,".RData")))){
-                                 load(file.path(Dir.Exports, paste0("BayesInf_Model_Positive_", Model,".RData")))
-                               }else{
-                                 run_df <- model_df
-                                 run_df$SignInferred[run_df$SignInferred != 1] <- 0
-                                 Bayes_Model_Positive <- brm(formula = SignInferred ~ Magnitude * EnvDiff,
-                                                             data = run_df,
-                                                             family = bernoulli(link = "logit"),
-                                                             warmup = nWarmup,
-                                                             iter = nSamples,
-                                                             chains = nChains,
-                                                             cores = nChains,
-                                                             seed = 42)
-                                 save(Bayes_Model_Positive, 
-                                      file = file.path(Dir.Exports, paste0("BayesInf_Model_Positive_", Model,".RData")))
-                               }
-                               
-                               ## Correct Identification of Negative Associations -----------------------------
-                               print("Models of Negative Associations")
-                               if(file.exists(file.path(Dir.Exports, paste0("BayesInf_Model_Negative_", Model,".RData")))){
-                                 load(file.path(Dir.Exports, paste0("BayesInf_Model_Negative_", Model,".RData")))
-                               }else{
-                                 run_df <- model_df
-                                 run_df$SignInferred[run_df$SignInferred != -1] <- 0
-                                 run_df$SignInferred <- abs(run_df$SignInferred)
-                                 Bayes_Model_Negative <- brm(formula = SignInferred ~Magnitude * EnvDiff,
-                                                             data = run_df,
-                                                             family = bernoulli(link = "logit"),
-                                                             warmup = nWarmup,
-                                                             iter = nSamples,
-                                                             chains = nChains,
-                                                             cores = nChains,
-                                                             seed = 42)
-                                 save(Bayes_Model_Negative, 
-                                      file = file.path(Dir.Exports, paste0("BayesInf_Model_Negative_", Model,".RData")))
-                               }
-                               
-                               ## Correct Identification of Absent Associations -------------------------------
-                               print("Models of Absent Associations")
-                               if(file.exists(file.path(Dir.Exports, paste0("BayesInf_Model_Absent_", Model,".RData")))){
-                                 load(file.path(Dir.Exports, paste0("BayesInf_Model_Absent_", Model,".RData")))
-                               }else{
-                                 run_df <- model_df
-                                 run_df$SignInferred[run_df$SignInferred != 0] <- 99
-                                 run_df$SignInferred[run_df$SignInferred == 0] <- 1
-                                 run_df$SignInferred[run_df$SignInferred == 99] <- 0
+print("INFERENCE REGRESSION - likelihood of inferring a specific association")
+InferenceModels_df <- pblapply(X = unique(Detection_df$Mode), 
+                               cl = length(unique(Detection_df$Mode)),
+                               FUN = function(Model){
+                                 # print(paste("########", Model))
+                                 model_df <- Detection_df[Detection_df$Mode == Model, ]
+                                 model_df <- model_df[!is.na(model_df$SignInferred), ]
+                                 model_df$Magnitude <- model_df$Magnitude*model_df$SignTrue
                                  
-                                 Bayes_Model_Absent <- brm(formula = SignInferred ~ Magnitude * EnvDiff,
-                                                           data = run_df,
-                                                           family = bernoulli(link = "logit"),
-                                                           warmup = nWarmup,
-                                                           iter = nSamples,
-                                                           chains = nChains,
-                                                           cores = nChains,
-                                                           seed = 42)
-                                 save(Bayes_Model_Absent,
-                                      file = file.path(Dir.Exports, paste0("BayesInf_Model_Absent_", Model,".RData")))
-                               }
-                               list(Pos = Bayes_Model_Positive,
-                                    Neg = Bayes_Model_Negative,
-                                    Abs = Bayes_Model_Absent)
-                             })
+                                 ## Correct Identification of Positive Associations -----------------------------
+                                 # print("Models of Positive Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Positive_", Model,".RData")))){
+                                   load(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Positive_", Model,".RData")))
+                                 }else{
+                                   run_df <- model_df
+                                   run_df$SignInferred[run_df$SignInferred != 1] <- 0
+                                   Bayes_Model_Positive <- brm(formula = SignInferred ~ Magnitude * EnvDiff,
+                                                               data = run_df,
+                                                               family = bernoulli(link = "logit"),
+                                                               warmup = nWarmup,
+                                                               iter = nSamples,
+                                                               chains = nChains,
+                                                               cores = 1,
+                                                               seed = 42)
+                                   save(Bayes_Model_Positive, 
+                                        file = file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Positive_", Model,".RData")))
+                                 }
+                                 
+                                 ## Correct Identification of Negative Associations -----------------------------
+                                 # print("Models of Negative Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Negative_", Model,".RData")))){
+                                   load(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Negative_", Model,".RData")))
+                                 }else{
+                                   run_df <- model_df
+                                   run_df$SignInferred[run_df$SignInferred != -1] <- 0
+                                   run_df$SignInferred <- abs(run_df$SignInferred)
+                                   Bayes_Model_Negative <- brm(formula = SignInferred ~Magnitude * EnvDiff,
+                                                               data = run_df,
+                                                               family = bernoulli(link = "logit"),
+                                                               warmup = nWarmup,
+                                                               iter = nSamples,
+                                                               chains = nChains,
+                                                               cores = 1,
+                                                               seed = 42)
+                                   save(Bayes_Model_Negative, 
+                                        file = file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Negative_", Model,".RData")))
+                                 }
+                                 
+                                 ## Correct Identification of Absent Associations -------------------------------
+                                 # print("Models of Absent Associations")
+                                 if(file.exists(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))){
+                                   load(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))
+                                 }else{
+                                   run_df <- model_df
+                                   run_df$SignInferred[run_df$SignInferred != 0] <- 99
+                                   run_df$SignInferred[run_df$SignInferred == 0] <- 1
+                                   run_df$SignInferred[run_df$SignInferred == 99] <- 0
+                                   
+                                   Bayes_Model_Absent <- brm(formula = SignInferred ~ Magnitude * EnvDiff,
+                                                             data = run_df,
+                                                             family = bernoulli(link = "logit"),
+                                                             warmup = nWarmup,
+                                                             iter = nSamples,
+                                                             chains = nChains,
+                                                             cores = 1,
+                                                             seed = 42)
+                                   save(Bayes_Model_Absent,
+                                        file = file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))
+                                 }
+                                 list(Pos = Bayes_Model_Positive,
+                                      Neg = Bayes_Model_Negative,
+                                      Abs = Bayes_Model_Absent)
+                               })
 names(InferenceModels_df) <- unique(Detection_df$Mode)
 
 ## Plotting --------------------------------------------------------------------
-message("Plotting")
+print("BAYESIAN MODEL PLOTTING")
 FUN.BayesPlot <- function(Model_ls = DetectionModels_df,
                           which = "Occurrence.Informed",
                           colo = "Inference"){
@@ -401,10 +526,10 @@ FUN.BayesPlot <- function(Model_ls = DetectionModels_df,
     cowplot::plot_grid(title, 
                        cowplot::plot_grid(plotlist = plots_list, ncol = 1
                                           # , labels = names(post_ls)
-                                          ), ncol = 1, rel_heights = c(0.1, 1)
-                       )
-    }
+                       ), ncol = 1, rel_heights = c(0.1, 1)
     )
+  }
+  )
   names(return_ls) <- names(plot1_ls)
   return_ls
 }
@@ -414,91 +539,16 @@ suppressMessages({Detection_plots <- FUN.BayesPlot(Model_ls = DetectionModels_df
 suppressMessages({Inference_plots <- FUN.BayesPlot(Model_ls = InferenceModels_df, which = names(DetectionModels_df), colo = "Inference")})
 options(warn = oldw)
 
-pdf(file.path(Dir.Exports, "FIG_Inference.pdf"), width = 16, height = 22, onefile = TRUE)
+pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Inference.pdf")), width = 16, height = 22, onefile = TRUE)
 Inference_plots
 dev.off()
 
-pdf(file.path(Dir.Exports, "FIG_Detection.pdf"), width = 16, height = 22, onefile = TRUE)
+pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Detection.pdf")), width = 16, height = 22, onefile = TRUE)
 Detection_plots
 dev.off()
 
-
-# ERROR RATES ==================================================================
-message("Inference Error Rates")
-ErrorRates_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
-  # SimName <- names(Inference_ls)[[98]]
-  x <- Inference_ls[[SimName]]
-  
-  ## matrices
-  True_mat <- sign(x$mats$True$Realised)
-  InferenceMats_ls <- c(x$mats$HMSC, list(COOCCUR = x$mats$COOCCUR))
-  
-  do.call(rbind, lapply(names(InferenceMats_ls),
-                        function(y){
-                          data.frame(
-                            Values = c(
-                              # true positive associations; how many of the inferred positive associations are correctly identified as such? - NaN means no positives in the inferred matrix
-                              TP = sum((True_mat + InferenceMats_ls[[y]]) == 2, na.rm = TRUE)/
-                                sum(InferenceMats_ls[[y]] == 1, na.rm = TRUE), 
-                              # true negative associations; how many of the inferred negative associations are correctly identified as such? - NaN means no negatives in the inferred matrix
-                              TN = sum((True_mat + InferenceMats_ls[[y]]) == -2, na.rm = TRUE)/
-                                sum(InferenceMats_ls[[y]] == -1, na.rm = TRUE),
-                              # true absent; how many of the inferred absent interactions are correctly identified as such? - NaN means no absents in the inferred matrix
-                              TA = sum((True_mat == 0) + (InferenceMats_ls[[y]] == 0) == 2, na.rm = TRUE)/
-                                sum(InferenceMats_ls[[y]] == 0, na.rm = TRUE),
-                              
-                              # falsely inferred positive; how many of the inferred positive associations are incorrectly identified as such?
-                              FP = sum((True_mat != 1) + (InferenceMats_ls[[y]] == 1) == 2, na.rm = TRUE)/
-                                sum(InferenceMats_ls[[y]] == 1, na.rm = TRUE), 
-                              # falsely inferred negative; how many of the inferred negative associations are incorrectly identified as such?
-                              FN = sum((True_mat != -1) + (InferenceMats_ls[[y]] == -1) == 2, na.rm = TRUE)/
-                                sum(InferenceMats_ls[[y]] == -1, na.rm = TRUE),
-                              # false absent; how many of the inferred absent interactions are correctly identified as such?
-                              FA = sum((True_mat != 0) + (InferenceMats_ls[[y]] == 0) == 2, na.rm = TRUE)/
-                                sum(InferenceMats_ls[[y]] == 0, na.rm = TRUE),
-                              
-                              # true positive links which were not inferred; how many of the true positive associations were not inferred?
-                              MP = (sum((True_mat == 1) + (InferenceMats_ls[[y]] != 1) == 2, na.rm = TRUE)/
-                                      sum(True_mat == 1, na.rm = TRUE)), 
-                              # true negative links which were not inferred; how many of the true negative associations were not inferred?
-                              MN = (sum((True_mat == -1) + (InferenceMats_ls[[y]] != -1) == 2, na.rm = TRUE)/
-                                      sum(True_mat == -1, na.rm = TRUE)),
-                              # true absent links which were not inferred; how many of the true absent associations were not inferred?
-                              MA = (sum((True_mat == 0) + (InferenceMats_ls[[y]] != 0) == 2, na.rm = TRUE)/
-                                      sum(True_mat == 0, na.rm = TRUE))
-                              
-                            ),
-                            Metric = c("TP", "TN", "TA", "FP", "FN", "FA", "MP", "MN", "MA"),
-                            # Identifier
-                            Approach = y,
-                            SimName = SimName
-                          )
-                        }))
-})
-ErrorRates_df <- do.call(rbind, ErrorRates_ls)
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Occurrence.", replacement = "[O]")
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Abundance.", replacement = "[A]")
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Performance.", replacement = "[P]")
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Informed", replacement = "Clim")
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Naive", replacement = "")
-ErrorRates_df <- ErrorRates_df[ErrorRates_df$Approach != "COOCCUR", ]
-NonNA_count <- aggregate(Values ~ Approach + Metric, data = ErrorRates_df,
-                         function(x) { sum(!is.na(x)) },
-                         na.action = NULL)
-colnames(NonNA_count)[3] <- "n"
-
-ggplot(ErrorRates_df, aes(y = Values, x = Approach)) +
-  geom_text(data = NonNA_count, aes(x = Approach, y = 1.1, label = n)) + 
-  geom_boxplot() +
-  facet_wrap(~ factor(Metric, levels = c("TP", "FP", "MP", "TN", "FN", "MN", "TA", "FA", "MA")),
-             ncol = 3, scales = "free") +
-  theme_bw() + labs(y = "Detection Rate [%]", x = "") + 
-  lims(y = c(0, 1.1))
-ggsave(filename = file.path(Dir.Exports, paste0("Fig_ErrorRates.png")),
-       width = 32, height = 20, units = "cm")
-
 # CONCEPT VISUALISATION ========================================================
-message("Conceptual Visualisation")
+print("CONCEPTUAL VISUALISATION")
 source("SimulationFrameworkFunctions.R")
 
 ## Data Generation -------------------------------------------------------------
