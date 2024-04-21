@@ -413,6 +413,7 @@ clusterpacks <- clusterCall(cl, function() sapply(package_vec, install.load.pack
 Inference_ls <- pblapply(Data_fs, 
                          cl = cl,
                          FUN = function(Treatment_Iter){
+                           print(Treatment_Iter)
                            if(file.exists(file.path(Dir.Exports, Treatment_Iter))){
                              load(file.path(Dir.Exports, Treatment_Iter))
                            }else{
@@ -425,7 +426,7 @@ Inference_ls <- pblapply(Data_fs,
                                                           Dir.Models = Dir.Models,
                                                           Treatment_Iter = Treatment_Iter,
                                                           n_Grid = n_Grid,
-                                                          ModelSave = TRUE) 
+                                                          ModelSave = TRUE)
                              }
                            }
                            # reporting back to top
