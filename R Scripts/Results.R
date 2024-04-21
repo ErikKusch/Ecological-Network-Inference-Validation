@@ -163,6 +163,7 @@ OSBP_Clim_gg <- ggplot(Dissimilarities_df[(Dissimilarities_df$j == "Realisable T
 OSBP_gg <- plot_grid(OSBP_All_gg, 
                      plot_grid(OSBP_NonClim_gg, OSBP_Clim_gg, ncol = 2, labels = c("B", "C")),
                      ncol = 1, labels = c("A", ""))
+OSBP_gg
 ggsave(OSBP_gg, filename = file.path(Dir.Exports, paste0(RunName, "Fig_OSBP.png")), 
        width = 16*2, height = 12*2, units = "cm")
 
@@ -456,17 +457,16 @@ FUN.BayesPlot <- function(Model_ls = DetectionModels_df,
       Y
     })
     
-    ProbMat <- expand.grid(seq(from = 0, to = 10, length.out = 1e2),
-                           seq(from = 0, to = 3, length.out = 1e2))
+    ProbMat <- expand.grid(seq(from = 0, to = 20, length.out = 1e2),
+                           seq(from = 0, to = 5, length.out = 1e2))
     if(colo == "Inference"){
-      ProbMat <- expand.grid(seq(from = -10, to = 10, length.out = 1e2),
-                             seq(from = 0, to = 3, length.out = 1e2))
+      ProbMat <- expand.grid(seq(from = -20, to = 20, length.out = 1e2),
+                             seq(from = 0, to = 5, length.out = 1e2))
     }
-    
-    
     colnames(ProbMat) <- c("Magnitude", "EnvDiff")
     
     prob_ls <- lapply(plot_ls, FUN = function(x){
+      # prob_iter <- add_predicted_draws(newdata = ProbMat, object = x)
       post_df <- posterior_samples(x)
       prob_iter <- ProbMat
       prob_iter$Prob <- apply(prob_iter, MARGIN = 1, FUN = function(x){
@@ -540,17 +540,18 @@ suppressMessages({Detection_plots <- FUN.BayesPlot(Model_ls = DetectionModels_df
 suppressMessages({Inference_plots <- FUN.BayesPlot(Model_ls = InferenceModels_df, which = names(DetectionModels_df), colo = "Inference")})
 options(warn = oldw)
 
-pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Inference.pdf")), width = 16, height = 22, onefile = TRUE)
-Inference_plots
-dev.off()
-
 pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Detection.pdf")), width = 16, height = 22, onefile = TRUE)
 Detection_plots
 dev.off()
 
+pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Inference.pdf")), width = 16, height = 22, onefile = TRUE)
+Inference_plots
+dev.off()
+
+
 # CONCEPT VISUALISATION ========================================================
 print("CONCEPTUAL VISUALISATION")
-source("SimulationFrameworkFunctions.R")
+# source("SimulationFrameworkFunctions.R")
 
 ## Data Generation -------------------------------------------------------------
 print("Data Generation")
