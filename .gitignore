@@ -50,3 +50,5 @@ Logo/*
 Alias.png
 .DS_Store
 /Container
+/Documentation-SimulationFramework
+*.sh
