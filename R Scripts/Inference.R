@@ -62,7 +62,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   TraitDiff_mat <- SPTrait_mat #-SPTraitSD_mat
   
   # limitting to realised interactions
-  Network_Realised[(TraitDiff_mat) > eval(Simulation_Output$Call$sd)+eval(Simulation_Output$Call$Effect_Dis)] <- 0 # anything greater apart in enviro pref than the interaction window (0.5) + environmental sd cannot be realised
+  Network_Realised[(TraitDiff_mat) > (eval(Simulation_Output$Call$sd)+eval(Simulation_Output$Call$Effect_Dis))/2] <- 0 # anything greater apart in enviro pref than the interaction window + environmental sd cannot be realised
   Real_mat <- Network_Realised
   diag(Real_mat) <- NA
   if(!is.directed(Simulation_Output$Network)){
@@ -195,7 +195,8 @@ FUN.Inference <- function(Simulation_Output = NULL,
                        studyDesign = studyDesign,
                        ranLevels = {list("GridID" = rL.site)}
       )
-    }else{
+    }
+    if(z == "Abundance"){
       InformedMod <- Hmsc(Y = Y[[z]], XData = X$Informed,  XFormula = XFormula,
                           TrData = Tr, TrFormula = TrFormula,
                           distr = "poisson",
@@ -208,7 +209,21 @@ FUN.Inference <- function(Simulation_Output = NULL,
                        studyDesign = studyDesign,
                        ranLevels = {list("GridID" = rL.site)}
       )
-      }
+    }
+    if(z == "Performance"){
+      InformedMod <- Hmsc(Y = Y[[z]], XData = X$Informed,  XFormula = XFormula,
+                          TrData = Tr, TrFormula = TrFormula,
+                          distr = "normal",
+                          studyDesign = studyDesign,
+                          ranLevels = {list("GridID" = rL.site)}
+      )
+      NaiveMod <- Hmsc(Y = Y[[z]], XData = X$Naive,  XFormula = ~1,
+                       TrData = NULL, TrFormula = NULL,
+                       distr = "normal",
+                       studyDesign = studyDesign,
+                       ranLevels = {list("GridID" = rL.site)}
+      )
+    }
     models_ls <- list(InformedMod,NaiveMod)
     names(models_ls) <- c("Informed","Naive")
     models_ls
