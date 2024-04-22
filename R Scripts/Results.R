@@ -560,10 +560,10 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
 }else{
   start <- Sys.time()
   Simulation_Output <- FUN.SimulationFramework(
-    seed = 21,
+    seed = 5,
     ## Network Creation
     n_spec = 5,
-    NetworkType = "Association", # or "Association"
+    NetworkType = "Association",
     Sparcity = 0,
     MaxStrength = 20,
     ## Initial Individual Creation
@@ -577,7 +577,7 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
     d0 = 0.4,
     b0 = 0.6,
     t_max = 10,
-    t_inter = 0.1,
+    t_inter = 0.5,
     sd = 5,
     migration = 0.5,
     Effect_Dis = 1,
