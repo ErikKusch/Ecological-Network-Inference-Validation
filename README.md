@@ -25,6 +25,9 @@ Nevertheless, using our simulation framework and a novel network inference perfo
 ## Data Availability
 Data needed for reproducing this analysis is available at https://zenodo.org/doi/10.5281/zenodo.10535149.
 
+## Reproducibility
+A containerised environment to execute these computations is available at https://github.com/ErikKusch/Ecological-Network-Inference-Validation/pkgs/container/infval.
+
 ## Funding
 - Aarhus University Research Foundation Start-up Grant (grant no. AUFF-2018-7-8)  
 - European Union Horizon Europe (grant no. [101057437](https://doi.org/10.3030/101057437)) 
