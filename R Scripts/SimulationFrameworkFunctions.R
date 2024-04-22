@@ -109,7 +109,7 @@ FUN.RandK <- function(n_spec = 20, k_range = c(200,200), seed = 42){
   return(k_vec)
 }
 
-## SIMULATION FUNCTION +++++++++++++++++++++++++++++++++++++++++++++++++
+# SIMULATION FUNCTION ==========================================================
 #' @param d0 Numeric. background death rate (gets altered by the environment and interactions).
 #' @param b0 Numeric. background birth rate (remains constant).
 #' @param env.xy Function with arguments X and Y. Translates X and Y coordinates into optimal local phenotype.
