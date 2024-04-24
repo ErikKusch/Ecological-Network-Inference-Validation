@@ -62,7 +62,7 @@ FUN.Inference <- function(Simulation_Output = NULL,
   TraitDiff_mat <- SPTrait_mat #-SPTraitSD_mat
   
   # limitting to realised interactions
-  Network_Realised[(TraitDiff_mat) > (eval(Simulation_Output$Call$sd)+eval(Simulation_Output$Call$Effect_Dis))/2] <- 0 # anything greater apart in enviro pref than the interaction window + environmental sd cannot be realised
+  Network_Realised[(TraitDiff_mat) > (eval(Simulation_Output$Call$sd)+eval(Simulation_Output$Call$Effect_Dis))] <- 0 # anything greater apart in enviro pref than the interaction window + environmental sd cannot be realised
   Real_mat <- Network_Realised
   diag(Real_mat) <- NA
   if(!is.directed(Simulation_Output$Network)){
@@ -330,7 +330,9 @@ FUN.Inference <- function(Simulation_Output = NULL,
     betadiv <- data.frame(i = rep(names(models_ls)[Model_Iter], 2),
                           j = c("SurvNonReal", "SurvReal"),
                           Accuracy = c(FUN_Matcomparison(mat1 = sign(NonReal_mat), mat2 = HMSC_mat),
-                                       FUN_Matcomparison(mat1 = sign(Real_mat), mat2 = HMSC_mat))
+                                       FUN_Matcomparison(mat1 = sign(Real_mat), mat2 = HMSC_mat)),
+                          Inference = c(FUN_Matcomparison(mat1 = sign(abs(NonReal_mat)), mat2 = abs(HMSC_mat)),
+                                        FUN_Matcomparison(mat1 = sign(abs(Real_mat)), mat2 = abs(HMSC_mat)))
                           )
   
     Graph <- HMSC_ig
@@ -348,66 +350,9 @@ FUN.Inference <- function(Simulation_Output = NULL,
     print(models_ls[[Model_Iter]]$Duration)
   } # model loop
   
-  # ## COOCCUR
-  # mat_Iter <- Occurrences
-  # mat_Iter[mat_Iter > 0] <- 1
-  # model_coccurr <- cooccur(mat = t(mat_Iter), type = "spp_site", 
-  #                          thresh = FALSE, spp_names = TRUE)
-  # Interac_df <- effect.sizes(model_coccurr, standardized = TRUE)
-  # Interac_df$pLT <- prob.table(model_coccurr)$p_lt
-  # Interac_df$pGT <- prob.table(model_coccurr)$p_gt
-  # Interac_df$Sig <- Interac_df[,4] < 0.05 | Interac_df[,5] < 0.05
-  # colnames(Interac_df)[1:2] <- c("Partner1", "Partner2")
-  # 
-  # COOCCUR_ig <- graph_from_data_frame(Interac_df[Interac_df$Sig == TRUE,], 
-  #                                     directed = mode)
-  # Spec_vec <- unique(c(Interac_df$Partner1, Interac_df$Partner2))
-  # if(length(E(COOCCUR_ig)) != 0){
-  #   E(COOCCUR_ig)$weight <- E(COOCCUR_ig)$effects
-  #   E(COOCCUR_ig)$weight[E(COOCCUR_ig)$weight > 0] <- 1
-  #   E(COOCCUR_ig)$weight[E(COOCCUR_ig)$weight < 0] <- -1
-  #   origvert <- names(V(COOCCUR_ig))
-  #   addvert <- Spec_vec[Spec_vec %nin% names(V(COOCCUR_ig))
-  #   ]
-  #   COOCCUR_ig <- add_vertices(COOCCUR_ig, 
-  #                              nv = length(addvert))
-  #   COOCCUR_ig <- set.vertex.attribute(COOCCUR_ig, "name", value = c(origvert, addvert))
-  # }else{
-  #   COOCCUR_ig <- make_empty_graph(n = length(Spec_vec))
-  #   COOCCUR_ig <- set.vertex.attribute(COOCCUR_ig, "name", value = Spec_vec)
-  # }
-  # 
-  # # V(Simulation_Output$Network)$name <- paste0("Sp_", V(Simulation_Output$Network))
-  # # E(Simulation_Output$Network)$weight <- ifelse(E(Simulation_Output$Network)$weight > 0, 1, -1)
-  # COOCCUR_ig <- permute(as.undirected(COOCCUR_ig), match(V(COOCCUR_ig)$name, colnames(Real_mat)))
-  # 
-  # net_mat <- as_adjacency_matrix(as.undirected(COOCCUR_ig), attr = "weight",
-  #                                type = "upper", sparse = FALSE)
-  # net_mat[lower.tri(net_mat)] <- NA
-  # diag(net_mat) <- NA
-  # colnames(net_mat) <- rownames(net_mat) <- V(COOCCUR_ig)$name
-  # COOCCUR_mat <- net_mat
-  # 
-  # Graph <- COOCCUR_ig
-  # 
-  # # betadiv <- network_betadiversity(N = Graphs_ls)[-3, ]
-  # 
-  # betadiv <- data.frame(i = c("COOCCUR", "COOCCUR"),
-  #                       j = c("SurvNonReal", "SurvReal"),
-  #                       Accuracy = c(FUN_Matcomparison(mat1 = sign(NonReal_mat), mat2 = COOCCUR_mat),
-  #                                    FUN_Matcomparison(mat1 = sign(Real_mat), mat2 = COOCCUR_mat))
-  # )
-  # 
-  # models_ls$COOCCUR <- list(COOCCUR_associations = Interac_df,
-  #                           Graph = Graph,
-  #                           Dissimilarity = betadiv
-  # )
-  # 
   ## FINAL OUTPUT
   models_ls$mats <- list(True = mat_ls,
                          HMSC = HMSCmat_ls
-                         # ,
-                         # COOCCUR = COOCCUR_mat
                          )
   models_ls$Graphs <- list(SurvNonReal = Network_SurvNonReal,
                            SurvReal = Network_SurvReal)
