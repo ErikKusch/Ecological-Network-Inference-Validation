@@ -72,16 +72,19 @@ cases <- gsub(as.character(cases), pattern = "Naive", replacement = "")
 
 ggplot(mapping = aes(x = factor(Var1, levels = cases), y = factor(Var2, levels = cases))) +
   geom_tile(data = plot_df[plot_df$metric == "Mean",], aes(fill = Freq)) +
+  geom_label(data = plot_df[plot_df$metric == "Mean",], aes(label = round(Freq, 2))) +
   scale_fill_viridis_c(option = "E", na.value="transparent", name = "Mean", position = "left") +
-  # scale_fill_gradient(low = "darkred", high = "forestgreen", na.value="transparent", 
-  #                     name = "Mean", position = "left") +
   new_scale_fill() +
   geom_tile(data = plot_df[plot_df$metric == "SD",], aes(fill = Freq)) +
-  # scale_fill_gradient(low = "beige", high = "darkblue", na.value="transparent", 
-  #                     name = "SD", position = "right") + 
+    geom_label(data = plot_df[plot_df$metric == "SD",], aes(label = round(Freq, 2))) +
   scale_fill_viridis_c(option = "B", na.value="transparent", name = "SD", position = "right") +
-  theme_bw() + 
-  labs(x = "", y = "", title = "Inference Similarity")
+  theme_bw() + theme(legend.position = "right", 
+                     legend.key.width = unit(dev.size()[1] / 25, "inches"),
+                     legend.key.height = unit(dev.size()[1] / 20, "inches"),
+                     legend.box = "horizontal") + 
+  labs(x = "", y = ""
+       # , title = "Inference Similarity"
+       )
 
 ggsave(filename = file.path(Dir.Exports, paste0(RunName, "-Fig_InfVInf.png")), 
        width = 16, height = 9, units = "cm")
@@ -95,13 +98,8 @@ Dissimilarities_df <- do.call(rbind,
                                 binding_df
                               })
 )
-Dissimilarities_df <- Dissimilarities_df[Dissimilarities_df$i != "COOCCUR", ]
 Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvNonReal", replacement = "Full True Network")
 Dissimilarities_df$j <- gsub(Dissimilarities_df$j, pattern = "SurvReal", replacement = "Realisable True Network")
-
-# cases <- unique(Dissimilarities_df$i)
-# cases <- rev(c("COOCCUR", rev(cases[startsWith(cases, "O")]), 
-#   rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")])))
 
 Dissimilarities_df$i <- gsub(as.character(Dissimilarities_df$i), pattern = "Occurrence.", replacement = "[O]")
 Dissimilarities_df$i <- gsub(as.character(Dissimilarities_df$i), pattern = "Abundance.", replacement = "[A]")
@@ -541,11 +539,11 @@ suppressMessages({Inference_plots <- FUN.BayesPlot(Model_ls = InferenceModels_df
 options(warn = oldw)
 
 pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Detection.pdf")), width = 16, height = 22, onefile = TRUE)
-Detection_plots
+print(Detection_plots)
 dev.off()
 
 pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Inference.pdf")), width = 16, height = 22, onefile = TRUE)
-Inference_plots
+print(Inference_plots)
 dev.off()
 
 
@@ -567,7 +565,7 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
     Sparcity = 0,
     MaxStrength = 20,
     ## Initial Individual Creation
-    n_individuals = 4e2,
+    n_individuals = 5e2,
     n_mode = "each", # or "total"
     Env_range = c(0, 10),
     Trait_sd = 1,
@@ -576,8 +574,8 @@ if(file.exists(file.path(Dir.Concept, "ConceptSim.RData"))){
     ## Simulation Parameters
     d0 = 0.4,
     b0 = 0.6,
-    t_max = 10,
-    t_inter = 0.5,
+    t_max = 20,
+    t_inter = 0.1,
     sd = 5,
     migration = 0.5,
     Effect_Dis = 1,
@@ -612,6 +610,9 @@ Initial_gg <- ggplot(first_df,
 Initial_gg
 
 ### ending constellation ----
+GridCoords <- seq(from = eval(Simulation_Output$Call[["Env_range"]])[1], 
+                  to = eval(Simulation_Output$Call[["Env_range"]])[2], 
+                  length = n_Grid+1)[-(n_Grid+1)]
 ID_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
 last_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
 last_df$Species <- factor(as.numeric(gsub(last_df$Species, pattern = "Sp_", replacement = "")))
@@ -624,11 +625,13 @@ Final_gg <- ggplot(last_df,
   geom_point() + 
   scale_shape_manual(values=1:nlevels(last_df$Species)) + 
   scale_color_viridis_d() + 
-  geom_vline(data = Traits_df, 
-             aes(xintercept = Trait, 
-                 col = Species)) + 
+  # geom_vline(data = Traits_df, 
+  #            aes(xintercept = Trait, 
+  #                col = Species)) + 
   xlim(eval(Simulation_Output$Call[["Env_range"]])[1],
        eval(Simulation_Output$Call[["Env_range"]])[2]) +
+  geom_vline(xintercept = GridCoords) + 
+  geom_hline(yintercept = GridCoords) + 
   theme_bw()
 Final_gg
 leg <- get_legend(Final_gg + theme(legend.position = "bottom"))
@@ -636,18 +639,14 @@ leg <- get_legend(Final_gg + theme(legend.position = "bottom"))
 ### constellation plotting ----
 Input_gg <- plot_grid(plot_grid(Initial_gg + theme(legend.position = "none"), 
                                 Final_gg + theme(legend.position = "none"), 
-                                nrow = 1),
+                                nrow = 1, labels = "AUTO"),
                       leg, rel_heights = c(1,0.1), ncol = 1)
 Input_gg
-ggsave(Input_gg, filename = file.path(Dir.Concept, "Fig_SpatialInputs.png"), 
-       width = 30, height = 16, units = "cm")
+# ggsave(Input_gg, filename = file.path(Dir.Concept, "Fig_SpatialInputs.png"), 
+#        width = 30, height = 16, units = "cm")
 
 ### species-site matrices ----
 ## make locational data into site X species matrix
-n_Grid <- 5
-GridCoords <- seq(from = eval(Simulation_Output$Call[["Env_range"]])[1], 
-                  to = eval(Simulation_Output$Call[["Env_range"]])[2], 
-                  length = n_Grid+1)[-(n_Grid+1)]
 grids_df <- expand.grid(GridCoords, GridCoords)
 colnames(grids_df) <- c("X", "Y")
 grids_df$GridID <- 1:nrow(grids_df)
@@ -744,11 +743,11 @@ InputGrids_ls <- pblapply(c("Occurrence", "Abundance", "Performance"), FUN = fun
   plot_grid(plotlist = plot_ls[-1], nrow = 1)
 })
 
-InputMatrices_gg <- plot_grid(grid_vis,
-                              plot_grid(plotlist = InputGrids_ls, nrow = 3, labels = c("B", "C", "D")),
+InputMatrices_gg <- plot_grid(Input_gg, #grid_vis
+                              plot_grid(plotlist = InputGrids_ls, nrow = 3, labels = c("C", "D", "E")),
                               ncol = 1, rel_heights = c(2.15, 3), labels = c("A", "")
 )
-# InputMatrices_gg
+InputMatrices_gg
 ggsave(InputMatrices_gg, filename = file.path(Dir.Concept, "Fig_InputMatrices.png"), 
        width = 36, height = 40, units = "cm")
 
