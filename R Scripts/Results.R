@@ -128,7 +128,8 @@ OSBP_All_gg <- ggplot(Dissimilarities_df[Dissimilarities_df$j == "Realisable Tru
   geom_violin() +
   geom_boxplot(width = 0.3) +
   stat_compare_means(comparisons = WithinCompare, 
-                     label.y = max(Dissimilarities_df[Dissimilarities_df$j == "Realisable True Network","Accuracy"])+4) + 
+                     label.y = max(Dissimilarities_df[Dissimilarities_df$j == "Realisable True Network","Accuracy"])+4,
+                     label = "p.signif", hide.ns = TRUE) + 
   facet_wrap(~j, scales = "free_x") + 
   theme_bw() + labs(x = "", y = "Inference Accuracy [%]")
 
@@ -141,7 +142,8 @@ OSBP_NonClim_gg <- ggplot(Dissimilarities_df[(Dissimilarities_df$j == "Realisabl
 ) + 
   geom_violin() +
   geom_boxplot(width = 0.3) +
-  stat_compare_means(comparisons = AcrossCompare) + 
+  stat_compare_means(comparisons = AcrossCompare, 
+                     label = "p.signif", hide.ns = TRUE) + 
   facet_wrap(~j, scales = "free_x") + 
   theme_bw() + labs(x = "", y = "Inference Accuracy [%]")
 
@@ -154,7 +156,8 @@ OSBP_Clim_gg <- ggplot(Dissimilarities_df[(Dissimilarities_df$j == "Realisable T
 ) + 
   geom_violin() +
   geom_boxplot(width = 0.3) +
-  stat_compare_means(comparisons = AcrossCCompare) + 
+  stat_compare_means(comparisons = AcrossCCompare,
+                     label = "p.signif", hide.ns = TRUE) + 
   facet_wrap(~j, scales = "free_x") + 
   theme_bw() + labs(x = "", y = "Inference Accuracy [%]")
 
@@ -233,10 +236,11 @@ ER_gg <- ggplot(ErrorRates_df, aes(y = Values, x = factor(Approach, levels = cas
   geom_text(data = NonNA_count, aes(x = factor(Approach, levels = cases), y = 1.1, label = n)) + 
   geom_boxplot() +
   facet_wrap(~ factor(Metric, levels = c("TP", "FP", "MP", "TN", "FN", "MN", "TA", "FA", "MA")),
-             ncol = 3, scales = "free") +
+             ncol = 3) +
   theme_bw() + labs(y = "Detection Rate [%]", x = "") + 
   lims(y = c(0, 1.1)) + 
   scale_y_continuous(breaks = seq(0,1, 0.1))
+ER_gg
 ggsave(ER_gg, filename = file.path(Dir.Exports, paste0(RunName, "Fig_ErrorRates.png")),
        width = 32, height = 20, units = "cm")
 
