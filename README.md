@@ -23,7 +23,7 @@ Network inference approaches have been developed to address the labour intensity
 Nevertheless, using our simulation framework and a novel network inference performance and behaviour quantification pipeline, we have confirmed previous criticisms of ecological network inference practices and added to existing guidelines for choice of appropriate network inference approaches. Thus, our simulation framework for network inference validation represents an important addition to the toolbox of network inference method development which fills a crucial knowledge gap of network inference performance assessments.
 
 ## Data Availability
-Data needed for reproducing this analysis is available at https://zenodo.org/doi/10.5281/zenodo.10535149.
+Data needed for reproducing this analysis is available at https://zenodo.org/records/11075461.
 
 ## Reproducibility
 A containerised environment to execute these computations is available at https://github.com/ErikKusch/Ecological-Network-Inference-Validation/pkgs/container/infval.
