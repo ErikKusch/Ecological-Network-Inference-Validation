@@ -13,6 +13,7 @@ message("Running Association Inference")
 Data_fs <- list.files(Dir.Data, pattern = ".RData")
 Data_fs <- Data_fs[grepl(RunName, Data_fs)]
 Data_fs <- Data_fs[!grepl("META", Data_fs)]
+Data_fs <- Data_fs[startsWith(Data_fs, RunName)]
 
 # INFERENCE FUNCTION =======================================================
 FUN.Inference <- function(Simulation_Output = NULL, 
