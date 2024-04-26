@@ -48,7 +48,7 @@ package_vec <- c(
   "ggplot2", # for plotting
   "tidybayes", # for plotting
   "brms", 
-  # "rethinking", 
+  "rethinking",
   "reshape2", 
   "cowplot", 
   "scales", 
