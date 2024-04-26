@@ -227,6 +227,7 @@ ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "
 ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Informed", replacement = "Clim")
 ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Naive", replacement = "")
 ErrorRates_df <- ErrorRates_df[ErrorRates_df$Approach != "COOCCUR", ]
+ErrorRates_df <- ErrorRates_df[ErrorRates_df$Metric %nin% c("FP", "FN", "FA"),]
 NonNA_count <- aggregate(Values ~ Approach + Metric, data = ErrorRates_df,
                          function(x) { sum(!is.na(x)) },
                          na.action = NULL)
@@ -235,8 +236,16 @@ colnames(NonNA_count)[3] <- "n"
 ER_gg <- ggplot(ErrorRates_df, aes(y = Values, x = factor(Approach, levels = cases))) +
   geom_text(data = NonNA_count, aes(x = factor(Approach, levels = cases), y = 1.1, label = n)) + 
   geom_boxplot() +
-  facet_wrap(~ factor(Metric, levels = c("TP", "FP", "MP", "TN", "FN", "MN", "TA", "FA", "MA")),
-             ncol = 3) +
+  facet_wrap(~ factor(Metric, levels = c("TP", 
+                                         # "FP", 
+                                         "MP", 
+                                         "TN",
+                                         # "FN", 
+                                         "MN", 
+                                         "TA", 
+                                         # "FA", 
+                                         "MA")),
+             ncol = 2) +
   theme_bw() + labs(y = "Detection Rate [%]", x = "") + 
   lims(y = c(0, 1.1)) + 
   scale_y_continuous(breaks = seq(0,1, 0.1))
@@ -297,12 +306,15 @@ Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName){
 names(Detection_ls) <- names(Inference_ls)
 Detection_df <- do.call(rbind, Detection_ls)
 # Detection_df <- Detection_df[Detection_df$Mode != "COOCCUR", ]
+Detection_df <- Detection_df[Detection_df$Mode %in% c("Abundance.Informed", 
+                         "Abundance.Naive", 
+                         "Occurrence.Naive"), ]
 
 ## detection classification
 print("DETECTION REGRESSION - likelihood of correct inference")
 # message("Detection of different correct associations")
 DetectionModels_df <- pblapply(X = unique(Detection_df$Mode), 
-                               cl = length(unique(Detection_df$Mode)),
+                               # cl = length(unique(Detection_df$Mode)),
                                FUN = function(Model){
                                  # print(paste("########", Model))
                                  model_df <- Detection_df[Detection_df$Mode == Model, ]
@@ -318,7 +330,7 @@ DetectionModels_df <- pblapply(X = unique(Detection_df$Mode),
                                                                warmup = nWarmup,
                                                                iter = nSamples,
                                                                chains = nChains,
-                                                               cores = 1,
+                                                               cores = nChains,
                                                                seed = 42)
                                    save(Bayes_Model_Positive, 
                                         file = file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Positive_", Model,".RData")))
@@ -335,38 +347,40 @@ DetectionModels_df <- pblapply(X = unique(Detection_df$Mode),
                                                                warmup = nWarmup,
                                                                iter = nSamples,
                                                                chains = nChains,
-                                                               cores = 1,
+                                                               cores = nChains,
                                                                seed = 42)
                                    save(Bayes_Model_Negative, 
                                         file = file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Negative_", Model,".RData")))
                                  }
                                  
-                                 ## Correct Identification of Absent Associations -------------------------------
-                                 # print("Models of Absent Associations")
-                                 if(file.exists(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))){
-                                   load(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))
-                                 }else{
-                                   Bayes_Model_Absent <- brm(formula = CorrectAbsent ~ Magnitude * EnvDiff,
-                                                             data = model_df,
-                                                             family = bernoulli(link = "logit"),
-                                                             warmup = nWarmup,
-                                                             iter = nSamples,
-                                                             chains = nChains,
-                                                             cores = 1,
-                                                             seed = 42)
-                                   save(Bayes_Model_Absent,
-                                        file = file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))
-                                 }
+                                 # ## Correct Identification of Absent Associations -------------------------------
+                                 # # print("Models of Absent Associations")
+                                 # if(file.exists(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))){
+                                 #   load(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))
+                                 # }else{
+                                 #   Bayes_Model_Absent <- brm(formula = CorrectAbsent ~ Magnitude * EnvDiff,
+                                 #                             data = model_df,
+                                 #                             family = bernoulli(link = "logit"),
+                                 #                             warmup = nWarmup,
+                                 #                             iter = nSamples,
+                                 #                             chains = nChains,
+                                 #                             cores = 1,
+                                 #                             seed = 42)
+                                 #   save(Bayes_Model_Absent,
+                                 #        file = file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Absent_", Model,".RData")))
+                                 # }
                                  list(Pos = Bayes_Model_Positive,
-                                      Neg = Bayes_Model_Negative,
-                                      Abs = Bayes_Model_Absent)
+                                      Neg = Bayes_Model_Negative
+                                      # ,
+                                      # Abs = Bayes_Model_Absent
+                                      )
                                })
 names(DetectionModels_df) <- unique(Detection_df$Mode)
 
 ## inference classification
 print("INFERENCE REGRESSION - likelihood of inferring a specific association")
 InferenceModels_df <- pblapply(X = unique(Detection_df$Mode), 
-                               cl = length(unique(Detection_df$Mode)),
+                               # cl = length(unique(Detection_df$Mode)),
                                FUN = function(Model){
                                  # print(paste("########", Model))
                                  model_df <- Detection_df[Detection_df$Mode == Model, ]
@@ -386,7 +400,7 @@ InferenceModels_df <- pblapply(X = unique(Detection_df$Mode),
                                                                warmup = nWarmup,
                                                                iter = nSamples,
                                                                chains = nChains,
-                                                               cores = 1,
+                                                               cores = nChains,
                                                                seed = 42)
                                    save(Bayes_Model_Positive, 
                                         file = file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Positive_", Model,".RData")))
@@ -406,36 +420,38 @@ InferenceModels_df <- pblapply(X = unique(Detection_df$Mode),
                                                                warmup = nWarmup,
                                                                iter = nSamples,
                                                                chains = nChains,
-                                                               cores = 1,
+                                                               cores = nChains,
                                                                seed = 42)
                                    save(Bayes_Model_Negative, 
                                         file = file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Negative_", Model,".RData")))
                                  }
                                  
-                                 ## Correct Identification of Absent Associations -------------------------------
-                                 # print("Models of Absent Associations")
-                                 if(file.exists(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))){
-                                   load(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))
-                                 }else{
-                                   run_df <- model_df
-                                   run_df$SignInferred[run_df$SignInferred != 0] <- 99
-                                   run_df$SignInferred[run_df$SignInferred == 0] <- 1
-                                   run_df$SignInferred[run_df$SignInferred == 99] <- 0
-                                   
-                                   Bayes_Model_Absent <- brm(formula = SignInferred ~ Magnitude * EnvDiff,
-                                                             data = run_df,
-                                                             family = bernoulli(link = "logit"),
-                                                             warmup = nWarmup,
-                                                             iter = nSamples,
-                                                             chains = nChains,
-                                                             cores = 1,
-                                                             seed = 42)
-                                   save(Bayes_Model_Absent,
-                                        file = file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))
-                                 }
+                                 # ## Correct Identification of Absent Associations -------------------------------
+                                 # # print("Models of Absent Associations")
+                                 # if(file.exists(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))){
+                                 #   load(file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))
+                                 # }else{
+                                 #   run_df <- model_df
+                                 #   run_df$SignInferred[run_df$SignInferred != 0] <- 99
+                                 #   run_df$SignInferred[run_df$SignInferred == 0] <- 1
+                                 #   run_df$SignInferred[run_df$SignInferred == 99] <- 0
+                                 #   
+                                 #   Bayes_Model_Absent <- brm(formula = SignInferred ~ Magnitude * EnvDiff,
+                                 #                             data = run_df,
+                                 #                             family = bernoulli(link = "logit"),
+                                 #                             warmup = nWarmup,
+                                 #                             iter = nSamples,
+                                 #                             chains = nChains,
+                                 #                             cores = 1,
+                                 #                             seed = 42)
+                                 #   save(Bayes_Model_Absent,
+                                 #        file = file.path(Dir.Exports, paste0(RunName, "BayesInf_Model_Absent_", Model,".RData")))
+                                 # }
                                  list(Pos = Bayes_Model_Positive,
-                                      Neg = Bayes_Model_Negative,
-                                      Abs = Bayes_Model_Absent)
+                                      Neg = Bayes_Model_Negative
+                                      # ,
+                                      # Abs = Bayes_Model_Absent
+                                      )
                                })
 names(InferenceModels_df) <- unique(Detection_df$Mode)
 
@@ -542,11 +558,11 @@ suppressMessages({Detection_plots <- FUN.BayesPlot(Model_ls = DetectionModels_df
 suppressMessages({Inference_plots <- FUN.BayesPlot(Model_ls = InferenceModels_df, which = names(DetectionModels_df), colo = "Inference")})
 options(warn = oldw)
 
-pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Detection.pdf")), width = 16, height = 22, onefile = TRUE)
+pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Detection.pdf")), width = 16, height = 22 *2/3, onefile = TRUE)
 print(Detection_plots)
 dev.off()
 
-pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Inference.pdf")), width = 16, height = 22, onefile = TRUE)
+pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Inference.pdf")), width = 16, height = 22 *2/3, onefile = TRUE)
 print(Inference_plots)
 dev.off()
 
