@@ -555,7 +555,7 @@ FUN.BayesPlot <- function(Model_ls = DetectionModels_df,
 oldw <- getOption("warn")
 options(warn=-1)
 suppressMessages({Detection_plots <- FUN.BayesPlot(Model_ls = DetectionModels_df, which = names(DetectionModels_df), colo = "Detection")})
-suppressMessages({Inference_plots <- FUN.BayesPlot(Model_ls = InferenceModels_df, which = names(DetectionModels_df), colo = "Inference")})
+suppressMessages({Inference_plots <- FUN.BayesPlot(Model_ls = InferenceModels_df, which = names(InferenceModels_df), colo = "Inference")})
 options(warn = oldw)
 
 pdf(file.path(Dir.Exports, paste0(RunName, "FIG_Detection.pdf")), width = 16, height = 22 *2/3, onefile = TRUE)
