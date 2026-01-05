@@ -54,7 +54,7 @@ FUN.RandNetwork <- function(n_spec = 20,
 #' @param n_individuals Numeric. How many initialising individuals to randomly create.
 #' @param n_mode Character. How to use n_individuals. If "each" the the number of initialising individuals will be equal to n_individual multiplied by n_spec. If "total", n_individuals are created with random species memberships within n_spec.
 #' @param Env_range Numeric vector of length 2. Minimum and maximum values of environmental gradient.
-#' @param Trait_sd Numeric. Standard deviation of trait disttributions from which trait values of each individual are drawn.
+#' @param Trait_sd Numeric. Standard deviation of trait distributions from which trait values of each individual are drawn.
 #' @param seed Numeric. Seed for random processes.
 #' @return A list of length 2 containing (1) ID_df - the data frame of initialising individuals with columns ID, Trait, X, Y, and Species, and (2) Trait_means - a named vector of random mean trait values for each species.
 FUN.RandIndividuals <- function(n_spec = 10, 

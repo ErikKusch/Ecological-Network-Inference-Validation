@@ -52,3 +52,7 @@ Alias.png
 /Container
 /Documentation-SimulationFramework
 *.sh
+.megaignore
+desktop.ini
+lock
+*.docx
