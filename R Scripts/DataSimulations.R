@@ -125,9 +125,6 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
       RunName = RunName
     )
 
-    save(SimResult, file = FNAME)
+    save(list = c("SimResult", "Network_igraph", "CarryingK_vec", "Niches_vec"), file = FNAME)
   }
 })
-
-# }
-# close(pb)
