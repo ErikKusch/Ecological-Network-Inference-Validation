@@ -38,15 +38,15 @@ package_vec <- c(
   "doParallel",
   "foreach",
   "doSNOW",
-  "pbapply"
+  "pbapply",
   # "randcorr",
   # "lubridate",
-  # # Inference Packages
-  # "Hmsc", # for HMSC models
-  # # "cooccur", # for COOCCUR models
-  # "igraph", # for graph representation
-  # # "devtools", # to install betalink
-  # # "betalink", # for computation of network dissimilarities
+  # Inference Packages
+  "netassoc", # for netassoc models
+  # ,
+  "Hmsc", # for HMSC models
+  "igraph", # for graph representation
+  "devtools" # to install cooccur
   # ## Result Packages
   # "ggplot2", # for plotting
   # "tidybayes", # for plotting
@@ -66,6 +66,13 @@ if ("NetSimVal" %in% rownames(installed.packages()) == FALSE) {
 }
 library(NetSimVal)
 package_vec <- c(package_vec, "NetSimVal")
+
+## COOCCUR Setup ----------------------------------------------------------
+if ("cooccur" %in% rownames(installed.packages()) == FALSE) {
+  devtools::install_github("https://github.com/griffithdan/cooccur")
+}
+library(cooccur)
+package_vec <- c(package_vec, "cooccur")
 
 ## Functionality -------------------------------------------------------
 `%nin%` <- Negate(`%in%`)
@@ -122,7 +129,7 @@ thin <- 1
 nWarmup <- round(nSamples * 0.3 * thin, 0)
 nChains <- 4
 ### Gridding of data along each axis:
-n_Grid <- 5
+n_Grid <- 20
 
 ## Cluster for parallel computation ------------------------------------
 # message("Registering Clusters")
@@ -140,6 +147,7 @@ n_Grid <- 5
 message("Actual Simulations")
 # lapply(RunNames, function(RunName) {
 for (RunName in RunNames) {
+  # RunName <- RunNames[[1]]
   print(RunName)
   # parallel::clusterExport(cl, varlist = "RunName", envir = environment())
   ## METADATA FOR RUN WRITING ============================================
@@ -152,7 +160,7 @@ for (RunName in RunNames) {
   source(file.path(Dir.Scripts, "DataSimulations.R"))
 
   ## ASSOCIATION INFERENCE ===============================================
-  # source(file.path(Dir.Scripts, "Inference.R"))
+  source(file.path(Dir.Scripts, "Inference.R"))
 
   ## POST-INFERENCE ANALYSES =============================================
   # source(file.path(Dir.Scripts, "Results.R"))
