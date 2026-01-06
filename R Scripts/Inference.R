@@ -64,7 +64,7 @@ Fun.Gridding <- function(
 ## Reducing network to only survived species component and making it a matrix
 Fun.SurvNetwork <- function(Igraph, ID_df) {
   NetMat_Realised <- as.matrix(as_adjacency_matrix(Igraph, attr = "weight"))
-  colnames(NetMat_Realised) <- rownames(NetMat_Realised) <- V(Network_Realised)$names
+  colnames(NetMat_Realised) <- rownames(NetMat_Realised) <- V(Igraph)$names
   NetMat_Realised <- NetMat_Realised[
     colnames(NetMat_Realised) %in% unique(ID_df$Species),
     colnames(NetMat_Realised) %in% unique(ID_df$Species)
