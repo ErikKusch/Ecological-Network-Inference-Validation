@@ -33,27 +33,22 @@ install.load.package <- function(x) {
   require(x, character.only = TRUE)
 }
 package_vec <- c(
-  # ## Data Simulation Packages
+  ## Data Simulation Packages
   "parallel",
   "doParallel",
-  "foreach",
-  "doSNOW",
   "pbapply",
-  # "randcorr",
-  # "lubridate",
   # Inference Packages
   "netassoc", # for netassoc models
-  # ,
   "Hmsc", # for HMSC models
   "igraph", # for graph representation
-  "devtools" # to install cooccur
-  # ## Result Packages
-  # "ggplot2", # for plotting
+  "devtools", # to install cooccur
+  ## Result Packages
+  "ggplot2", # for plotting
   # "tidybayes", # for plotting
   # "brms",
   # "rethinking",
   # "reshape2",
-  # "cowplot",
+  "cowplot"
   # "scales",
   # "ggnewscale",
   # "ggpubr"
@@ -76,6 +71,7 @@ package_vec <- c(package_vec, "cooccur")
 
 ## Functionality -------------------------------------------------------
 `%nin%` <- Negate(`%in%`)
+source(file.path(Dir.Scripts, "Paper Plotting Functions.r"))
 
 # RUN SET-UP ===========================================================
 ## Simulation Parameters -----------------------------------------------
@@ -168,3 +164,7 @@ for (RunName in RunNames) {
 }
 # }
 # )
+
+# NON-RESULT FIGURE CREATION ==============================================
+source(file.path(Dir.Scripts, "Figure 1 - Demo of NetSimVal Capabilities.r"))
+source(file.path(Dir.Scripts, "Figure 2 - Demo of SimulationRuns.r"))

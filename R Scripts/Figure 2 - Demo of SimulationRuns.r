@@ -1,127 +1,25 @@
-library(ggplot2)
-library(cowplot)
-
-Dir.Base <- getwd()
-Dir.Data <- file.path(Dir.Base, "Data")
-
-
-RunNames <- list("NoSpaceBinaryInterac", "BinaryInterac", "ContinuousInterac", "RareSpecies")
-
 plotlist <- lapply(RunNames, FUN = function(RunName) {
+    # RunName <- RunNames[1]
+    # print(RunName)
     ## Data
     load(file.path(Dir.Data, paste0(RunName, "_DEMO_Environment.RData")))
     load(file.path(Dir.Data, paste0(RunName, "_DEMO.RData")))
 
     ## Environment
-    Env_long <- as.data.frame(
-        as.table(
-            Env_mat[
-                seq(from = 1, to = nrow(Env_mat), by = 9),
-                seq(from = 1, to = ncol(Env_mat), by = 9)
-            ]
-        )
-    )
-    colnames(Env_long) <- c("Y", "X", "VALUES")
-    Env_long <- apply(Env_long, 2, as.numeric)
-
-    Env_gg <- ggplot(Env_long, aes(x = X, y = Y, fill = VALUES)) +
-        geom_tile() +
-        coord_fixed() +
-        scale_fill_viridis_c(
-            option = "C",
-            name = "Environmental Value /\n Optimal Phenotype",
-            guide = guide_colourbar(title.vjust = 0.75)
-        ) +
-        theme_bw() +
-        theme(
-            plot.margin = unit(c(0, 0, 0, 0), "cm"),
-            legend.position = "top",
-            legend.direction = "horizontal",
-            legend.key.width = unit(2, "cm"),
-            legend.key.height = unit(1, "cm"),
-            panel.background = element_rect(fill = "#2c2c2c", color = "#2c2c2c")
-        )
+    Env_gg <- Plot_Environment(Env_mat)
     # Env_gg
 
     ## Network
-    Effect_Mat <- igraph::as_adjacency_matrix(Network_igraph, attr = "weight")
-    rownames(Effect_Mat) <- colnames(Effect_Mat) <- names(CarryingK_vec)
-    edg_df <- as.data.frame(as.table(as.matrix(Effect_Mat)))
-    colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
-    NetMat_gg <- ggplot(edg_df, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
-        geom_tile(color = "black", lwd = 0.5, linetype = 1) +
-        coord_fixed() +
-        scale_fill_gradient2(
-            low = "#5ab4ac",
-            high = "#d8b365",
-            name = "Association Strength",
-            guide = guide_colourbar(title.vjust = 0.75)
-        ) +
-        # scale_fill_viridis_c(
-        #     option = "C",
-        #     name = "Environmental Value /\n Optimal Phenotype",
-        #     guide = guide_colourbar(title.vjust = 0.75)
-        # ) +
-        theme_bw() +
-        theme(
-            plot.margin = unit(c(0, 0, 0, 0), "cm"),
-            legend.position = "bottom",
-            legend.direction = "horizontal",
-            legend.key.width = unit(2, "cm"),
-            legend.key.height = unit(1, "cm"),
-            panel.background = element_rect(fill = "#2c2c2c", color = "#2c2c2c"),
-            axis.text.x = element_text(angle = -20, hjust = 0)
-        )
+    NetMat_gg <- Plot_NetMat(Network_igraph)
     # NetMat_gg
 
     ## Final spatial arrangement
     last_df <- SimResult[[length(SimResult)]]
-    last_df$Species <- factor(as.numeric(gsub(last_df$Species, pattern = "Sp_", replacement = "")))
-    Traits_df <- aggregate(Trait ~ Species, data = last_df, FUN = mean)
-    Traits_df$Species <- factor(as.numeric(gsub(Traits_df$Species,
-        pattern = "Sp_", replacement = ""
-    )))
-    Final_gg <- ggplot(
-        last_df,
-        aes(x = X, y = Y, col = Species, shape = Species)
-    ) +
-        geom_point() +
-        scale_shape_manual(values = 1:nlevels(last_df$Species)) +
-        scale_color_viridis_d() +
-        geom_vline(
-            data = Traits_df,
-            aes(
-                xintercept = Trait,
-                col = Species
-            )
-        ) +
-        xlim(
-            0,
-            10
-        ) +
-        theme_bw() +
-        theme(legend.position = "top")
+    Final_gg <- Plot_IndivsInSpace(last_df)
     # Final_gg
 
     ## Abundance over time
-    Abund_time <- lapply(names(SimResult),
-        FUN = function(t) {
-            ID_iter <- SimResult[[t]]
-            cbind(data.frame(table(ID_iter$Species)), t)
-        }
-    )
-    Abund_time <- do.call(rbind, Abund_time)
-    Abund_time$t <- as.numeric(Abund_time$t)
-    colnames(Abund_time)[1:2] <- c("Species", "Abundance")
-    Abund_time$Species <- factor(as.numeric(gsub(Abund_time$Species,
-        pattern = "Sp_", replacement = ""
-    )))
-
-    AbundTime_gg <- ggplot(Abund_time, aes(x = t, y = Abundance, col = Species)) +
-        geom_line(linewidth = 1.5) +
-        scale_color_viridis_d() +
-        theme_bw() +
-        theme(legend.position = "bottom")
+    AbundTime_gg <- Plot_AbundTime_gg(SimResult)
     # AbundTime_gg
 
     ## return
@@ -182,6 +80,6 @@ main_ggs <- plot_grid(
 main_ggs
 ggsave(
     main_ggs,
-    file = "DemoFig.png",
+    file = file.path(Dir.Exports, "Figure2_SimulationRunsDemo.png"),
     width = 28, height = 34
 )

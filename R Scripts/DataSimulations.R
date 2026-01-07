@@ -28,6 +28,7 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
   } else {
     seed <- ITER * 1000 + 42
 
+
     # creating a network of interacting species
     Network_igraph <- Sim.Network(
       n_spec = n_spec, # how many species
@@ -90,7 +91,7 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
       y_gradient = y_gradient # function relating y-location to environmental value
     )
 
-    if (ITER == 0) {
+    if (ITER == 1) {
       save(
         list =
           c("Env_mat", "Network_igraph", "CarryingK_vec"),
