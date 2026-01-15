@@ -8,11 +8,6 @@
 #' ####################################################################### #
 message("Running Simulation Framework")
 
-# pb <- txtProgressBar(max = n_runs + 1, style = 3)
-# progress <- function(n) setTxtProgressBar(pb, n)
-# opts <- list(progress = progress)
-
-# foreach(ITER = 1:(n_runs + 1), .options.snow = opts) %dopar% {
 pblapply(1:(n_runs + 1), FUN = function(ITER) {
   ITER <- ITER - 1
   if (ITER == 0) {

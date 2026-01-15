@@ -17,7 +17,7 @@ Dir.Data <- file.path(Dir.Base, "Data")
 Dir.Models <- file.path(Dir.Base, "Models")
 Dir.Exports <- file.path(Dir.Base, "Exports")
 Dir.Concept <- file.path(Dir.Base, "Concept")
-Dir.Scripts <- file.path(Dir.Base, "R Scripts")
+Dir.Scripts <- file.path(Dir.Base, "RScripts")
 Dirs <- c(Dir.Data, Dir.Models, Dir.Exports, Dir.Concept)
 CreateDir <- sapply(Dirs, function(x) if (!dir.exists(x)) dir.create(x))
 if (!dir.exists(Dir.Data)) {
@@ -87,14 +87,14 @@ n_runs <- 1e3 # number of networks to simulate and infer for
 ## Network Creation
 n_spec <- 20 # number of species per network
 NetworkType <- "Association" # type of links
-Sparcity <- 0 # how many % of associations should be exactly 0
+Sparcity <- 0.1 # how many % of associations should be exactly 0
 MaxStrength <- 1 # absolute maximum of interspecific links
 
 ## Initial Individual Creation
-n_individuals <- 5e2 # number of individuals for initialisation
+n_individuals <- 1e3 # number of individuals for initialisation
 n_mode <- "each" # how to interpret the above number
 Env_range <- c(0, 10) # environmental landscape range
-Trait_sd <- 1 # standard deviation of traits per species
+Trait_sd <- 0.5 # standard deviation of traits per species
 
 ## Space Creation
 Env_col <- Env_row <- 1e3
@@ -109,10 +109,10 @@ d0 <- 0.4 # base death rate
 b0 <- 0.6 # base birth rate
 t_max <- 50 # simulation time
 t_inter <- 1 # when to record data
-Env_sd <- 5 # environmental maladaption SD, higher = more permissive environment
+Env_sd <- 1 # environmental maladaption SD, higher = more permissive environment
 migration <- 0.5 # sd of 0 centred normal for relocation of offspring
 migration_top <- 0.05 # point at which migration peaks
-Effect_Dis <- 0.5 # distance at which link effect manifests
+Effect_Dis <- 0.25 # distance at which link effect manifests
 verbose <- TRUE # whether to produce simulation progress tracker in console
 
 ## run names
