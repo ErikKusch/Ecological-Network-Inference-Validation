@@ -82,7 +82,7 @@ if ("NetSimVal" %in% rownames(installed.packages()) == FALSE) {
 library(NetSimVal)
 
 ## global simulation parameters -----
-n_runs <- 1e3 # number of networks to simulate and infer for
+n_runs <- 0 # number of networks to simulate and infer for
 
 ## Network Creation
 n_spec <- 20 # number of species per network
@@ -91,10 +91,10 @@ Sparcity <- 0.1 # how many % of associations should be exactly 0
 MaxStrength <- 1 # absolute maximum of interspecific links
 
 ## Initial Individual Creation
-n_individuals <- 1e3 # number of individuals for initialisation
+n_individuals <- 2e3 # number of individuals for initialisation
 n_mode <- "each" # how to interpret the above number
-Env_range <- c(0, 10) # environmental landscape range
-Trait_sd <- 0.5 # standard deviation of traits per species
+Env_range <- c(0, 20) # environmental landscape range
+Trait_sd <- 0.25 # standard deviation of traits per species
 
 ## Space Creation
 Env_col <- Env_row <- 1e3
@@ -105,18 +105,19 @@ y_gradient <- function(y) 0 # function relating y-location to environmental valu
 k_range <- c(300, 300) # lower and upper limit of carrying capacities
 
 ## Simulation Parameters
-d0 <- 0.4 # base death rate
-b0 <- 0.6 # base birth rate
-t_max <- 50 # simulation time
+d0 <- 0.35 # base death rate
+b0 <- 0.65 # base birth rate
+t_max <- 1e2 # simulation time
 t_inter <- 1 # when to record data
-Env_sd <- 1 # environmental maladaption SD, higher = more permissive environment
+Env_sd <- 0.5 # environmental maladaption SD, higher = more permissive environment
 migration <- 0.5 # sd of 0 centred normal for relocation of offspring
-migration_top <- 0.05 # point at which migration peaks
-Effect_Dis <- 0.25 # distance at which link effect manifests
+migration_top <- 0.25 # point at which migration peaks
+migration_trunc <- 1 # maximum distance of migration
+Effect_Dis <- 0.5 # maximum distance at which link effect manifests
 verbose <- TRUE # whether to produce simulation progress tracker in console
 
 ## run names
-RunNames <- list("NoSpaceBinaryInterac", "BinaryInterac", "ContinuousInterac", "RareSpecies")
+RunNames <- list("ContinuousInterac", "RareSpecies", "BinaryInterac", "NoSpaceBinaryInterac")
 
 ## Inference Settings --------------------------------------------------
 ### HMSC MCMC Settings

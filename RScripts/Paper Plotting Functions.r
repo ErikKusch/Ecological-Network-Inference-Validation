@@ -84,7 +84,7 @@ Plot_IndivsInSpace <- function(last_df) {
         ) +
         xlim(
             0,
-            10
+            20
         ) +
         theme_bw() +
         theme(legend.position = "top")

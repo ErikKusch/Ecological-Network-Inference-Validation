@@ -92,7 +92,8 @@ pblapply(Data_fs, cl = 20, FUN = function(Treatment_Iter) {
     V(Network_True)$names <- paste0("Sp_", V(Network_True))
 
     ### realisation
-    if (RunName %in% "NoSpaceBinaryInterac") {
+    if (RunName %in% c("NoSpaceBinaryInterac", "BinaryInterac")) {
+      message("what to do about network realisation?!")
       Network_Realised <- Network_True
     } else {
       Network_Realised <- NetSimVal::Val.Realise(Network_True, Trait_means = Niches_vec, Effect_Dis, Env_sd)
@@ -102,6 +103,7 @@ pblapply(Data_fs, cl = 20, FUN = function(Treatment_Iter) {
     ### turning into matrices
     NetMat_ls <- lapply(list(True = Network_True, Real = Network_Realised), FUN = function(Network) {
       NetMat <- Fun.SurvNetwork(Network, ID_df)
+      print(NetMat)
       diag(NetMat) <- NA
       if (!is.directed(Network_True)) {
         NetMat[lower.tri(NetMat)] <- NA

@@ -86,7 +86,7 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
       y_gradient = y_gradient # function relating y-location to environmental value
     )
 
-    if (ITER == 1) {
+    if (ITER == 0) {
       save(
         list =
           c("Env_mat", "Network_igraph", "CarryingK_vec"),
@@ -107,6 +107,7 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
       env.sd = Env_sd,
       mig.sd = migration,
       mig.top = migration_top,
+      mig.trunc = migration_trunc,
 
       # Interaction parameters
       interac.maxdis = Effect_Dis,
@@ -118,7 +119,8 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
       Sim.t.inter = t_inter,
       seed = seed,
       verbose = verbose, # whether to print progress in time as current time
-      RunName = RunName
+      RunName = RunName,
+      writeFile = FALSE
     )
 
     save(list = c("SimResult", "Network_igraph", "CarryingK_vec", "Niches_vec"), file = FNAME)

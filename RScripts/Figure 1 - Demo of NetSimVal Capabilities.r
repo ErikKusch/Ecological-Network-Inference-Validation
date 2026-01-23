@@ -7,13 +7,13 @@ Network_igraph <- Sim.Network(
     seed = 42 # seed for randomness
 )
 
-CarryingK_vec <- c(Sp_1 = 300, Sp_2 = 300, Sp_3 = 300, Sp_4 = 300)
+CarryingK_vec <- c(Sp_1 = 400, Sp_2 = 400, Sp_3 = 400, Sp_4 = 400)
 
 Niches_vec <- c(Sp_1 = 2, Sp_2 = 4, Sp_3 = 6, Sp_4 = 8)
 
 Initialise_df <- Sim.Initialise(
     n_spec = 4,
-    n_individuals = 1e3,
+    n_individuals = 3e3,
     n_mode = "each",
     Env_range = c(0, 10),
     Trait_means = Niches_vec,
@@ -48,9 +48,10 @@ if (file.exists(FNAME)) {
         env.sd = 0.5,
         mig.sd = 0.5,
         mig.top = 0.35,
+        mig.trunc = 1,
 
         # Interaction parameters
-        interac.maxdis = 1,
+        interac.maxdis = 0,
         interac.igraph = Network_igraph,
         interac.scale = 0,
 
@@ -59,7 +60,8 @@ if (file.exists(FNAME)) {
         Sim.t.inter = t_inter,
         seed = 0,
         verbose = verbose, # whether to print progress in time as current time
-        RunName = "BoxDEMO_SpaceOnly"
+        RunName = "BoxDEMO_SpaceOnly",
+        writeFile = FALSE
     )
     save(SimResult, file = FNAME)
 }
@@ -129,7 +131,7 @@ AssocPanels_gg <- lapply(1:length(AssocPanels), function(x) {
         names(CarryingK_vec) <- paste0("Sp_", V(Network_igraph))
 
         if (i == "OvercomingEnvironment") {
-            Niches_vec <- c(Sp_1 = 1.5, Sp_2 = 3.5)
+            Niches_vec <- c(Sp_1 = 0.5, Sp_2 = 1.5)
         } else {
             Niches_vec <- c(Sp_1 = 0, Sp_2 = 0)
         }
@@ -152,7 +154,7 @@ AssocPanels_gg <- lapply(1:length(AssocPanels), function(x) {
                 ncol = 1e3, nrow = 1e3,
                 x_gradient = function(x) x,
                 y_gradient = function(y) 0
-            ) / 2
+            ) / 5
         } else {
             Env_mat <- Sim.Space(
                 x_range = c(0, 10),
@@ -180,9 +182,10 @@ AssocPanels_gg <- lapply(1:length(AssocPanels), function(x) {
 
                 # Spatial parameters
                 env.xy = Env_mat,
-                env.sd = 0.5,
-                mig.sd = 0.25,
-                mig.top = 0.15,
+                env.sd = ifelse(i == "OvercomingEnvironment", 0.5, 0.5),
+                mig.sd = 0.5,
+                mig.top = 0.25,
+                mig.trunc = 1,
 
                 # Interaction parameters
                 interac.maxdis = 0.5,
@@ -194,7 +197,8 @@ AssocPanels_gg <- lapply(1:length(AssocPanels), function(x) {
                 Sim.t.inter = t_inter,
                 seed = 42,
                 verbose = verbose, # whether to print progress in time as current time
-                RunName = "BoxDEMO_AssocsPanels"
+                RunName = "BoxDEMO_AssocsPanels",
+                writeFile = FALSE
             )
             save(SimResult, file = FNAME)
         }
@@ -245,12 +249,12 @@ Network_igraph <- Sim.Network(
 )
 E(Network_igraph)$weight <- rep(0, length(E(Network_igraph)))
 E(Network_igraph)$weight[1] <- 0.5 # sp1 likes sp2 and vice versa
-E(Network_igraph)$weight[length(E(Network_igraph))] <- -0.5 # sp5 hates sp6 and cive versa
+E(Network_igraph)$weight[length(E(Network_igraph))] <- -1 # sp5 hates sp6 and cive versa
 ## links spanning niches
 # E(Network_igraph)$weight[6] <- 1 # sp2 and sp3 like each other
 # E(Network_igraph)$weight[11] <- 1 # sp3 and sp5 like each other
 
-CarryingK_vec <- rep(200, length(V(Network_igraph)))
+CarryingK_vec <- rep(300, length(V(Network_igraph)))
 names(CarryingK_vec) <- paste0("Sp_", V(Network_igraph))
 
 Niches_vec <- c(Sp_1 = 5, Sp_2 = 5, Sp_3 = 10, Sp_4 = 10, Sp_5 = 15, Sp_6 = 15)
@@ -263,7 +267,7 @@ Initialise_df <- Sim.Initialise(
     n_spec = 6,
     n_individuals = 2e3,
     n_mode = "each",
-    Env_range = c(0, 10),
+    Env_range = c(0, 20),
     Trait_means = Niches_vec,
     Trait_sd = 0,
     seed = 42
@@ -292,11 +296,12 @@ if (file.exists(FNAME)) {
         # Spatial parameters
         env.xy = Env_mat,
         env.sd = 1,
-        mig.sd = 0.5,
-        mig.top = 0.15,
+        mig.sd = 0.75,
+        mig.top = 0.5,
+        mig.trunc = 1,
 
         # Interaction parameters
-        interac.maxdis = 0.5,
+        interac.maxdis = 1,
         interac.igraph = Network_igraph,
         interac.scale = 1,
 
@@ -305,7 +310,8 @@ if (file.exists(FNAME)) {
         Sim.t.inter = t_inter,
         seed = 42,
         verbose = verbose, # whether to print progress in time as current time
-        RunName = "BoxDEMO_Assocs"
+        RunName = "BoxDEMO_Assocs",
+        writeFile = FALSE
     )
     save(SimResult, file = FNAME)
 }
@@ -316,7 +322,7 @@ p_main <- Plot_Environment(Env_mat) +
     geom_point(
         data = last_df,
         aes(x = X, y = Y, shape = Species),
-        fill = "white"
+        fill = "white", col = "white"
     ) +
     scale_shape_manual(values = 1:length(unique(last_df$Species)))
 
@@ -341,7 +347,12 @@ SpecinSpace2_gg <- plot_grid(
     rel_widths = c(1, 0.1)
 )
 
-print(SpecinSpace2_gg)
+ggsave(
+    filename = file.path(Dir.Exports, "Figure_BoxDEMO_Assoc_AllinOne_gg.jpg"),
+    plot = SpecinSpace2_gg,
+    width = 14 * 1.7, height = 16 * 1.5, units = "cm"
+)
+
 
 # INTERACTIONS WITH ENVIRONMENT ============================================
 stop("make ring and trophic network")
