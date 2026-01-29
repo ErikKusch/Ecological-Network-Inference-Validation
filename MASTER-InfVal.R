@@ -123,21 +123,8 @@ nChains <- 4
 ### Gridding of data along each axis:
 n_Grid <- 20
 
-## Cluster for parallel computation ------------------------------------
-# message("Registering Clusters")
-# DesiredCores <- ifelse(n_runs > parallel::detectCores(), 2, 50) # parallel::detectCores()
-# ncores <- ifelse(parallel::detectCores() > DesiredCores, DesiredCores, parallel::detectCores())
-# cl <- parallel::makeCluster(
-#   ncores
-#   # , outfile = "Log.txt"
-# )
-# parallel::clusterExport(cl, varlist = ls(), envir = environment())
-# clusterpacks <- clusterCall(cl, function() sapply(package_vec, install.load.package))
-# doSNOW::registerDoSNOW(cl)
-
 # LOOPING OVER RUNS ======================================================
 message("Actual Simulations")
-# lapply(RunNames, function(RunName) {
 for (RunName in RunNames) {
   # RunName <- RunNames[[1]]
   print(RunName)
@@ -158,8 +145,6 @@ for (RunName in RunNames) {
   # source(file.path(Dir.Scripts, "Results.R"))
   # save.image(file = MetaF)
 }
-# }
-# )
 
 # NON-RESULT FIGURE CREATION ==============================================
 source(file.path(Dir.Scripts, "Figure 1 - Demo of NetSimVal Capabilities.r"))
