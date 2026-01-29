@@ -56,12 +56,12 @@ package_vec <- c(
 sapply(package_vec, install.load.package)
 
 ## NetSimVal Setup --------------------------------------------------------
-load_all("C:/Users/erikkus/Documents/NetSimVal/NetSimVal")
-# if ("NetSimVal" %in% rownames(installed.packages()) == FALSE) {
-#   devtools::install_github("https://github.com/ErikKusch/NetSimVal")
-# }
-# library(NetSimVal)
-# package_vec <- c(package_vec, "NetSimVal")
+# load_all("C:/Users/erikkus/Documents/NetSimVal/NetSimVal")
+if ("NetSimVal" %in% rownames(installed.packages()) == FALSE) {
+  devtools::install_github("https://github.com/ErikKusch/NetSimVal")
+}
+library(NetSimVal)
+package_vec <- c(package_vec, "NetSimVal")
 
 ## COOCCUR Setup ----------------------------------------------------------
 if ("cooccur" %in% rownames(installed.packages()) == FALSE) {
