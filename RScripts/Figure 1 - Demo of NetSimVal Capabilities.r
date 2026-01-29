@@ -1,15 +1,14 @@
 # NO NETWORK SPECIES IN ENVIRONMENT =========================================
-Network_igraph <- Sim.Network(
+Network_mat <- Sim.Network( # these are turned off in the actual simulation below
     n_spec = 4,
     NetworkType = "Association",
-    Sparcity = 1,
-    MaxStrength = 0, # what absolute value is the maximum link strength
+    Sparcity = 0,
+    MaxStrength = 1, # what absolute value is the maximum link strength
     seed = 42 # seed for randomness
 )
 
-CarryingK_vec <- c(Sp_1 = 400, Sp_2 = 400, Sp_3 = 400, Sp_4 = 400)
-
-Niches_vec <- c(Sp_1 = 2, Sp_2 = 4, Sp_3 = 6, Sp_4 = 8)
+CarryingK_vec <- c(Sp_01 = 400, Sp_02 = 400, Sp_03 = 400, Sp_04 = 400)
+Niches_vec <- c(Sp_01 = 2, Sp_02 = 4, Sp_03 = 6, Sp_04 = 8)
 
 Initialise_df <- Sim.Initialise(
     n_spec = 4,
@@ -52,7 +51,7 @@ if (file.exists(FNAME)) {
 
         # Interaction parameters
         interac.maxdis = 0,
-        interac.igraph = Network_igraph,
+        interac.mat = Network_mat,
         interac.scale = 0,
 
         # Simulation parameters
@@ -118,22 +117,22 @@ AssocPanels_gg <- lapply(1:length(AssocPanels), function(x) {
         FNAME <- file.path(Dir.Concept, paste0("BoxDEMO_AssocsPanels_SimResult_Assoc_", x, gsub(i, pattern = "Normal", replacement = ""), ".RData"))
         # print(FNAME)
 
-        Network_igraph <- Sim.Network(
+        Network_mat <- Sim.Network(
             n_spec = 2,
             NetworkType = "Association",
             Sparcity = 0,
             MaxStrength = 1, # what absolute value is the maximum link strength
             seed = 42 # seed for randomness
         )
-        E(Network_igraph)$weight <- x
+        Network_mat[2, 1] <- Network_mat[1, 2] <- x
 
-        CarryingK_vec <- rep(200, length(V(Network_igraph)))
-        names(CarryingK_vec) <- paste0("Sp_", V(Network_igraph))
+        CarryingK_vec <- rep(200, ncol(Network_mat))
+        names(CarryingK_vec) <- colnames(Network_mat)
 
         if (i == "OvercomingEnvironment") {
-            Niches_vec <- c(Sp_1 = 0.5, Sp_2 = 1.5)
+            Niches_vec <- c(Sp_01 = 0.5, Sp_02 = 1.5)
         } else {
-            Niches_vec <- c(Sp_1 = 0, Sp_2 = 0)
+            Niches_vec <- c(Sp_01 = 0, Sp_02 = 0)
         }
 
         Initialise_df <- Sim.Initialise(
@@ -189,7 +188,7 @@ AssocPanels_gg <- lapply(1:length(AssocPanels), function(x) {
 
                 # Interaction parameters
                 interac.maxdis = 0.5,
-                interac.igraph = Network_igraph,
+                interac.mat = Network_mat,
                 interac.scale = 1,
 
                 # Simulation parameters
@@ -240,28 +239,19 @@ ggsave(
 # ALL-IN-ONE ASSOCIATIONS WITH ENVIRONMENT =================================
 FNAME <- file.path(Dir.Concept, "BoxDEMO_AssocsAllinOne_SimResult.RData")
 
-Network_igraph <- Sim.Network(
+Network_mat <- Sim.Network(
     n_spec = 6,
     NetworkType = "Association",
     Sparcity = 0,
-    MaxStrength = 1, # what absolute value is the maximum link strength
+    MaxStrength = 0, # what absolute value is the maximum link strength
     seed = 42 # seed for randomness
 )
-E(Network_igraph)$weight <- rep(0, length(E(Network_igraph)))
-E(Network_igraph)$weight[1] <- 0.5 # sp1 likes sp2 and vice versa
-E(Network_igraph)$weight[length(E(Network_igraph))] <- -1 # sp5 hates sp6 and cive versa
-## links spanning niches
-# E(Network_igraph)$weight[6] <- 1 # sp2 and sp3 like each other
-# E(Network_igraph)$weight[11] <- 1 # sp3 and sp5 like each other
+Network_mat[2, 1] <- Network_mat[1, 2] <- 0.5
+Network_mat[5, 6] <- Network_mat[6, 5] <- -0.5
 
-CarryingK_vec <- rep(300, length(V(Network_igraph)))
-names(CarryingK_vec) <- paste0("Sp_", V(Network_igraph))
-
-Niches_vec <- c(Sp_1 = 5, Sp_2 = 5, Sp_3 = 10, Sp_4 = 10, Sp_5 = 15, Sp_6 = 15)
-
-Effect_Mat <- igraph::as_adjacency_matrix(Network_igraph, attr = "weight")
-rownames(Effect_Mat) <- colnames(Effect_Mat) <- names(CarryingK_vec)
-Effect_Mat
+CarryingK_vec <- rep(300, ncol(Network_mat))
+names(CarryingK_vec) <- colnames(Network_mat)
+Niches_vec <- c(Sp_01 = 5, Sp_02 = 5, Sp_03 = 10, Sp_04 = 10, Sp_05 = 15, Sp_06 = 15)
 
 Initialise_df <- Sim.Initialise(
     n_spec = 6,
@@ -302,7 +292,7 @@ if (file.exists(FNAME)) {
 
         # Interaction parameters
         interac.maxdis = 1,
-        interac.igraph = Network_igraph,
+        interac.mat = Network_mat,
         interac.scale = 1,
 
         # Simulation parameters
@@ -355,9 +345,6 @@ ggsave(
 
 
 # INTERACTIONS WITH ENVIRONMENT ============================================
-stop("make ring and trophic network")
-# maybe make one unaffected primary, one secondary consumer, and one tertiary predator? maybe with weaker links, specify ncihe preference of primary and secondary consumer as increasingly unaligned with environment (do this via negative preferences)
-
 Env_mat <- Sim.Space(
     x_range = c(0, 10),
     y_range = c(0, 10),
@@ -371,3 +358,6 @@ Env_mat <- Sim.Space(
 ) / 5
 Env_mat <- abs(Env_mat - 3)
 Plot_Environment(Env_mat)
+
+stop("make trophic network")
+# maybe make one unaffected primary, one secondary consumer, and one tertiary predator? maybe with weaker links, specify ncihe preference of primary and secondary consumer as increasingly unaligned with environment (do this via negative preferences)

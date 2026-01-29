@@ -73,7 +73,7 @@ Fun.SurvNetwork <- function(Igraph, ID_df) {
 }
 
 # ACTUAL INFERENCE =========================================================
-pblapply(Data_fs, cl = 20, FUN = function(Treatment_Iter) {
+pblapply(Data_fs, cl = 5, FUN = function(Treatment_Iter) {
   # Treatment_Iter <- Data_fs[1]
   FNAME <- file.path(Dir.Models, basename(Treatment_Iter))
 
@@ -88,29 +88,15 @@ pblapply(Data_fs, cl = 20, FUN = function(Treatment_Iter) {
     ID_Grid <- Fun.Gridding(ID_df = ID_df)
 
     ## Networks ---------------------------------------------------------------
-    Network_True <- Network_igraph
-    V(Network_True)$names <- paste0("Sp_", V(Network_True))
-
+    Network_True <- Network_mat
+    diag(Network_True) <- NA
     ### realisation
-    if (RunName %in% c("NoSpaceBinaryInterac", "BinaryInterac")) {
-      message("what to do about network realisation?!")
+    if (grepl(pattern = "NoSpace", RunName)) {
       Network_Realised <- Network_True
     } else {
       Network_Realised <- NetSimVal::Val.Realise(Network_True, Trait_means = Niches_vec, Effect_Dis, Env_sd)
-      V(Network_Realised)$names <- V(Network_True)$names
     }
-
-    ### turning into matrices
-    NetMat_ls <- lapply(list(True = Network_True, Real = Network_Realised), FUN = function(Network) {
-      NetMat <- Fun.SurvNetwork(Network, ID_df)
-      print(NetMat)
-      diag(NetMat) <- NA
-      if (!is.directed(Network_True)) {
-        NetMat[lower.tri(NetMat)] <- NA
-      }
-      NetMat
-    })
-
+    NetMat_ls <- list(True = Network_True, Real = Network_Realised)
 
     ## Inferences -------------------------------------------------------------
     ### COOCCCUR -------------------

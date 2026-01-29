@@ -30,10 +30,8 @@ Plot_Environment <- function(Env_mat) {
     return(Env_gg)
 }
 
-Plot_NetMat <- function(Network_igraph) {
-    Effect_Mat <- igraph::as_adjacency_matrix(Network_igraph, attr = "weight")
-    rownames(Effect_Mat) <- colnames(Effect_Mat) <- names(CarryingK_vec)
-    edg_df <- as.data.frame(as.table(as.matrix(Effect_Mat)))
+Plot_NetMat <- function(Network_mat) {
+    edg_df <- as.data.frame(as.table(as.matrix(Network_mat)))
     colnames(edg_df) <- c("Partner 1", "Partner 2", "Strength")
     NetMat_gg <- ggplot(edg_df, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
         geom_tile(color = "black", lwd = 0.5, linetype = 1) +

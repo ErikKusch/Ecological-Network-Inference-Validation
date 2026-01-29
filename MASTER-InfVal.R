@@ -56,11 +56,12 @@ package_vec <- c(
 sapply(package_vec, install.load.package)
 
 ## NetSimVal Setup --------------------------------------------------------
-if ("NetSimVal" %in% rownames(installed.packages()) == FALSE) {
-  devtools::install_github("https://github.com/ErikKusch/NetSimVal")
-}
-library(NetSimVal)
-package_vec <- c(package_vec, "NetSimVal")
+load_all("C:/Users/erikkus/Documents/NetSimVal/NetSimVal")
+# if ("NetSimVal" %in% rownames(installed.packages()) == FALSE) {
+#   devtools::install_github("https://github.com/ErikKusch/NetSimVal")
+# }
+# library(NetSimVal)
+# package_vec <- c(package_vec, "NetSimVal")
 
 ## COOCCUR Setup ----------------------------------------------------------
 if ("cooccur" %in% rownames(installed.packages()) == FALSE) {
@@ -75,14 +76,8 @@ source(file.path(Dir.Scripts, "Paper Plotting Functions.r"))
 
 # RUN SET-UP ===========================================================
 ## Simulation Parameters -----------------------------------------------
-# package loading
-if ("NetSimVal" %in% rownames(installed.packages()) == FALSE) {
-  devtools::install_github("https://github.com/ErikKusch/NetSimVal")
-}
-library(NetSimVal)
-
 ## global simulation parameters -----
-n_runs <- 0 # number of networks to simulate and infer for
+n_runs <- 1e3 # number of networks to simulate and infer for
 
 ## Network Creation
 n_spec <- 20 # number of species per network
@@ -91,13 +86,13 @@ Sparcity <- 0.1 # how many % of associations should be exactly 0
 MaxStrength <- 1 # absolute maximum of interspecific links
 
 ## Initial Individual Creation
-n_individuals <- 2e3 # number of individuals for initialisation
+n_individuals <- 3e3 # number of individuals for initialisation
 n_mode <- "each" # how to interpret the above number
 Env_range <- c(0, 20) # environmental landscape range
 Trait_sd <- 0.25 # standard deviation of traits per species
 
 ## Space Creation
-Env_col <- Env_row <- 1e3
+Env_col <- Env_row <- 2e2
 x_gradient <- function(x) x # function relating x-location to environmental value
 y_gradient <- function(y) 0 # function relating y-location to environmental value
 
@@ -109,15 +104,15 @@ d0 <- 0.35 # base death rate
 b0 <- 0.65 # base birth rate
 t_max <- 1e2 # simulation time
 t_inter <- 1 # when to record data
-Env_sd <- 0.5 # environmental maladaption SD, higher = more permissive environment
+Env_sd <- 1 # environmental maladaption SD, higher = more permissive environment
 migration <- 0.5 # sd of 0 centred normal for relocation of offspring
 migration_top <- 0.25 # point at which migration peaks
-migration_trunc <- 1 # maximum distance of migration
+migration_trunc <- 0.75 # maximum distance of migration
 Effect_Dis <- 0.5 # maximum distance at which link effect manifests
 verbose <- TRUE # whether to produce simulation progress tracker in console
 
 ## run names
-RunNames <- list("ContinuousInterac", "RareSpecies", "BinaryInterac", "NoSpaceBinaryInterac")
+RunNames <- list("ContinuousInterac", "RareSpecies", "BinaryInterac", "NoSpace")
 
 ## Inference Settings --------------------------------------------------
 ### HMSC MCMC Settings

@@ -21,20 +21,19 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
   if (file.exists(FNAME)) {
     1 + 1
   } else {
-    seed <- ITER * 1000 + 42
-
-
+    seed <- ITER * 42
     # creating a network of interacting species
-    Network_igraph <- Sim.Network(
+    Network_mat <- Sim.Network(
       n_spec = n_spec, # how many species
       NetworkType = NetworkType, # if links are symmetric ("Association") or asymmetric ("Interaction")
       Sparcity = Sparcity, # how many links are exactly 0. Bound between 0 and 1
       MaxStrength = MaxStrength, # what absolute value is the maximum link strength
       seed = seed # seed for randomness
     )
-    if (RunName == "NoSpaceBinaryInterac" | RunName == "BinaryInterac") {
-      igraph::E(Network_igraph)$weight <- sign(igraph::E(Network_igraph)$weight)
+    if (grepl(pattern = "BinaryInterac", RunName)) {
+      Network_mat <- sign(Network_mat)
     }
+    # print(Network_mat)
 
     # creating vector of carrying capacity for species
     CarryingK_vec <- Sim.CarryingK(
@@ -49,7 +48,7 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
       Env_range = Env_range, # lower and upper bound of environmental preferences/niches
       seed = seed # seed for randomness
     )
-    if (RunName == "NoSpaceBinaryInterac") {
+    if (grepl(pattern = "NoSpace", RunName)) {
       namesVec <- names(Niches_vec)
       Niches_vec <- rep(2, n_spec)
       names(Niches_vec) <- namesVec
@@ -65,6 +64,7 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
       Trait_sd = Trait_sd, # standard deviation around species-specific niches for drawing individual-specific niches
       seed = seed # seed for randomness
     )
+
     if (RunName == "RareSpecies") {
       RareSpecies_vec <- sample(unique(Initialise_df$Species), size = round(0.3 * n_spec), replace = FALSE)
       for (i in RareSpecies_vec) {
@@ -74,7 +74,7 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
     }
 
     # creating environment for simulation
-    if (RunName == "NoSpaceBinaryInterac") {
+    if (grepl(pattern = "NoSpace", RunName)) {
       x_gradient <- function(x) 1 # function relating x-location to environmental value
       y_gradient <- function(y) 1 # function relating y-location to environmental value
     }
@@ -89,10 +89,12 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
     if (ITER == 0) {
       save(
         list =
-          c("Env_mat", "Network_igraph", "CarryingK_vec"),
+          c("Env_mat", "Network_mat", "CarryingK_vec"),
         file = file.path(Dir.Data, paste0(RunName, "_DEMO_Environment.RData"))
       )
     }
+
+    # print(Plot_NetMat(Network_mat))
 
     # actual simulation
     SimResult <- Sim.Compute(
@@ -111,7 +113,7 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
 
       # Interaction parameters
       interac.maxdis = Effect_Dis,
-      interac.igraph = Network_igraph,
+      interac.mat = Network_mat,
       interac.scale = 1,
 
       # Simulation parameters
@@ -123,6 +125,8 @@ pblapply(1:(n_runs + 1), FUN = function(ITER) {
       writeFile = FALSE
     )
 
-    save(list = c("SimResult", "Network_igraph", "CarryingK_vec", "Niches_vec"), file = FNAME)
+    # print(Plot_AbundTime_gg(SimResult))
+
+    save(list = c("SimResult", "Network_mat", "CarryingK_vec", "Niches_vec"), file = FNAME)
   }
 })
