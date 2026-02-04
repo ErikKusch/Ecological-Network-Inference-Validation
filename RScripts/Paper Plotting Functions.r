@@ -1,3 +1,25 @@
+label_row <- function(text) {
+    ggplot() +
+        geom_rect(
+            aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf),
+            fill = "white",
+            color = NA
+        ) +
+        annotate(
+            "text",
+            x = 0, y = 0,
+            label = text,
+            hjust = 0,
+            fontface = "bold",
+            size = 5
+        ) +
+        coord_cartesian(xlim = c(0, 1), ylim = c(-1, 1), clip = "off") +
+        theme_void() +
+        theme(
+            plot.margin = margin(0, 0, 0, 0)
+        )
+}
+
 Plot_Environment <- function(Env_mat) {
     Env_long <- as.data.frame(
         as.table(

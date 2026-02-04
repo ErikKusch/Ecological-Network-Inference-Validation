@@ -39,19 +39,24 @@ vignettes/*.pdf
 .Renviron
 
 /Manuscripts
-/Data
-/For_loop
-/Concept
-/Models
-/X - DISCARDED
-*.txt
 Logo/*
+/Documentation-SimulationFramework
 Alias.png
 .DS_Store
-/Container
-/Documentation-SimulationFramework
 *.sh
 .megaignore
 desktop.ini
 lock
 *.docx
+
+/Concept/*
+!/Concept/
+!/Concept/*DEMO*.RData
+
+/Data/*
+!/Data/
+!/Data/*DEMO*.RData
+
+/Models/*
+!/Models/
+!/Models/*DEMO*.RData

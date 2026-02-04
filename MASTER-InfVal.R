@@ -80,13 +80,13 @@ source(file.path(Dir.Scripts, "Paper Plotting Functions.r"))
 n_runs <- 1e3 # number of networks to simulate and infer for
 
 ## Network Creation
-n_spec <- 20 # number of species per network
+n_spec <- 15 # number of species per network
 NetworkType <- "Association" # type of links
 Sparcity <- 0.1 # how many % of associations should be exactly 0
 MaxStrength <- 1 # absolute maximum of interspecific links
 
 ## Initial Individual Creation
-n_individuals <- 2e3 # number of individuals for initialisation
+n_individuals <- 1e3 # number of individuals for initialisation
 n_mode <- "each" # how to interpret the above number
 Env_range <- c(0, 20) # environmental landscape range
 Trait_sd <- 0.25 # standard deviation of traits per species

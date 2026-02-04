@@ -10,7 +10,7 @@ message("Running Simulation Framework")
 
 pblapply(
   1:(n_runs + 1),
-  cl = 5,
+  # cl = 5,
   FUN = function(ITER) {
     ITER <- ITER - 1
     if (ITER == 0) {
@@ -55,6 +55,7 @@ pblapply(
         namesVec <- names(Niches_vec)
         Niches_vec <- rep(2, n_spec)
         names(Niches_vec) <- namesVec
+        Trait_sd <- 0
       }
 
       # creating an initial dataframe of individuals of species
