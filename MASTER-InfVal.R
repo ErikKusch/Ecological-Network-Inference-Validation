@@ -112,7 +112,7 @@ Effect_Dis <- 0.5 # maximum distance at which link effect manifests
 verbose <- TRUE # whether to produce simulation progress tracker in console
 
 ## run names
-RunNames <- list("ContinuousInterac", "RareSpecies", "BinaryInterac", "NoSpace")
+RunNames <- list("ContinuousInterac") # , "RareSpecies", "BinaryInterac", "NoSpace")
 
 ## Inference Settings --------------------------------------------------
 ### HMSC MCMC Settings

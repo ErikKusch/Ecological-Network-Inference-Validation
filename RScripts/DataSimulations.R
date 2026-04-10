@@ -10,7 +10,7 @@ message("Running Simulation Framework")
 
 pblapply(
   1:(n_runs + 1),
-  # cl = 5,
+  cl = 5,
   FUN = function(ITER) {
     ITER <- ITER - 1
     if (ITER == 0) {

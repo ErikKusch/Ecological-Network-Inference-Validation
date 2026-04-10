@@ -83,7 +83,7 @@ pblapply(
     if (file.exists(FNAME)) {
       1 + 1
     } else {
-      load(file.path(Dir.Data, paste0(tools::file_path_sans_ext(Treatment_Iter), "_Environment.RData"))) # loads "Env_mat"
+      load(file.path(Dir.Data, paste0(paste0(strsplit(tools::file_path_sans_ext(Treatment_Iter), split = "_")[[1]][[1]], "_DEMO"), "_Environment.RData"))) # loads "Env_mat"
       load(file.path(Dir.Data, Treatment_Iter)) # loads list objects "SimResult", "Network_igraph", "CarryingK_vec", "Niches_vec"
 
       ## Simulated individuals --------------------------------------------------
