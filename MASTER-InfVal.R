@@ -44,13 +44,13 @@ package_vec <- c(
   "devtools", # to install cooccur
   ## Result Packages
   "ggplot2", # for plotting
-  # "tidybayes", # for plotting
+  "tidybayes", # for plotting
   # "brms",
   # "rethinking",
   # "reshape2",
-  "cowplot"
+  "cowplot",
   # "scales",
-  # "ggnewscale",
+  "ggnewscale"
   # "ggpubr"
 )
 sapply(package_vec, install.load.package)
@@ -142,8 +142,8 @@ for (RunName in RunNames) {
   source(file.path(Dir.Scripts, "Inference.R"))
 
   ## POST-INFERENCE ANALYSES =============================================
-  # source(file.path(Dir.Scripts, "Results.R"))
-  # save.image(file = MetaF)
+  source(file.path(Dir.Scripts, "Results.R"))
+  save.image(file = MetaF)
 }
 
 # NON-RESULT FIGURE CREATION ==============================================

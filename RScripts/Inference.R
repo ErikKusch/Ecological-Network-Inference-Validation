@@ -19,10 +19,11 @@ Data_fs <- Data_fs[startsWith(Data_fs, RunName)]
 # INFERENCE FUNCTIONALITY ==================================================
 ## Gridding of simulation outputs and summary to abundances of species per cell
 Fun.Gridding <- function(
-    from = Env_range[1],
-    to = Env_range[2],
-    n_Grid2 = n_Grid,
-    ID_df = NULL) {
+  from = Env_range[1],
+  to = Env_range[2],
+  n_Grid2 = n_Grid,
+  ID_df = NULL
+) {
   GridCoords <- seq(
     from = from,
     to = to,
@@ -73,15 +74,14 @@ Fun.SurvNetwork <- function(Igraph, ID_df) {
 }
 
 # ACTUAL INFERENCE =========================================================
-pblapply(
+Inference_ls <- pblapply(
   Data_fs,
   cl = 5,
   FUN = function(Treatment_Iter) {
     # Treatment_Iter <- Data_fs[1]
     FNAME <- file.path(Dir.Models, basename(Treatment_Iter))
-
     if (file.exists(FNAME)) {
-      1 + 1
+      load(FNAME)
     } else {
       load(file.path(Dir.Data, paste0(paste0(strsplit(tools::file_path_sans_ext(Treatment_Iter), split = "_")[[1]][[1]], "_DEMO"), "_Environment.RData"))) # loads "Env_mat"
       load(file.path(Dir.Data, Treatment_Iter)) # loads list objects "SimResult", "Network_igraph", "CarryingK_vec", "Niches_vec"
@@ -257,10 +257,12 @@ pblapply(
         Netassoc = Netassoc_results,
         HMSC = HMSC_results
       )
+      Inference_ls <- list(Inferrences = Inference_ls, True = list(True = NetMat_ls$True, Realised = NetMat_ls$Real))
       save(
         Inference_ls,
         file = FNAME
       )
     }
+    return(Inference_ls)
   }
 )
