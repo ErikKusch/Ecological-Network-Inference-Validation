@@ -88,7 +88,12 @@ Inference_ls <- pblapply(
 
       ## Simulated individuals --------------------------------------------------
       ID_df <- SimResult[[length(SimResult)]]
-      ID_Grid <- Fun.Gridding(ID_df = ID_df)
+      ID_Grid <- Fun.Gridding(
+        from = Env_range[1],
+        to = Env_range[2],
+        n_Grid2 = n_Grid,
+        ID_df = ID_df
+      )
 
       ## Networks ---------------------------------------------------------------
       Network_True <- Network_mat
@@ -97,7 +102,12 @@ Inference_ls <- pblapply(
       if (grepl(pattern = "NoSpace", RunName)) {
         Network_Realised <- Network_True
       } else {
-        Network_Realised <- NetSimVal::Val.Realise(Network_True, Trait_means = Niches_vec, Effect_Dis, Env_sd)
+        Network_Realised <- NetSimVal::Val.Realise(
+          Network_True,
+          Trait_means = Niches_vec,
+          Effect_Dis = Effect_Dis,
+          Env_sd = Env_sd
+        )
       }
       NetMat_ls <- list(True = Network_True, Real = Network_Realised)
 

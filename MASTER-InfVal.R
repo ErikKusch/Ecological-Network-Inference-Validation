@@ -45,11 +45,12 @@ package_vec <- c(
   ## Result Packages
   "ggplot2", # for plotting
   "tidybayes", # for plotting
-  # "brms",
+  "brms",
   # "rethinking",
-  # "reshape2",
+  "reshape2",
   "cowplot",
   # "scales",
+  "viridis",
   "ggnewscale"
   # "ggpubr"
 )

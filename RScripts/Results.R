@@ -9,10 +9,10 @@
 #' ####################################################################### #
 message("Compiling Results")
 
-FUN_Matcomparison <- function(mat1, mat2) {
-  eq <- sign(mat1) == sign(mat2) # avoid to later compute this twice
-  round(sum(eq, na.rm = TRUE) / sum(!is.na(eq)) * 100, 2) # get the percentage of equal values
-}
+# FUN_Matcomparison <- function(mat1, mat2) {
+#   eq <- sign(mat1) == sign(mat2) # avoid to later compute this twice
+#   round(sum(eq, na.rm = TRUE) / sum(!is.na(eq)) * 100, 2) # get the percentage of equal values
+# }
 
 # INFERRED VS. INFERRED ========================================================
 print("INFERRED VS. INFERRED")
@@ -27,7 +27,7 @@ InfComp <- pblapply(
     names(mats) <- methods_vec
     comp_df <- expand.grid(names(mats), names(mats))
     comp_df$Similarity <- apply(comp_df, MARGIN = 1, FUN = function(z) {
-      FUN_Matcomparison(mats[[z[1]]], mats[[z[2]]])
+      Val.Accuracy(mats[[z[1]]], mats[[z[2]]])
     })
     comp_df
   }
@@ -64,6 +64,8 @@ plot_df <- rbind(
   as.data.frame(as.table(as.matrix(sd_df)))
 )
 plot_df$metric <- c(rep("Mean", nums), rep("SD", nums))
+
+plot_df$Freq <- round(plot_df$Freq, 2)
 
 # plot_df$Var1 <- gsub(as.character(plot_df$Var1), pattern = "Occurrence.", replacement = "[O]")
 # plot_df$Var1 <- gsub(as.character(plot_df$Var1), pattern = "Abundance.", replacement = "[A]")
@@ -122,7 +124,7 @@ Accuracy_df <- do.call(rbind, pblapply(Inference_ls[-1], FUN = function(Sim) {
 
   data.frame(
     Accuracy = sapply(mats, FUN = function(mat) {
-      FUN_Matcomparison(True_mat, mat)
+      Val.Accuracy(True_mat, mat)
     }),
     Approach = methods_vec
   )
@@ -131,14 +133,14 @@ Accuracy_df <- do.call(rbind, pblapply(Inference_ls[-1], FUN = function(Sim) {
 
 OS_gg <- ggplot(
   Accuracy_df,
-  aes(x = Accuracy, y = factor(Approach, levels = cases))
+  aes(x = round(Accuracy, 2), y = factor(Approach, levels = cases))
 ) +
   stat_halfeye() +
   # geom_violin() +
   # facet_wrap(~j, scales = "free_x") +
   lims(x = c(0, 100)) +
   theme_bw() +
-  labs(y = "", x = "Inference Accuracy")
+  labs(y = "", x = "Inference Accuracy [%]")
 OS_gg
 ggsave(OS_gg, filename = file.path(Dir.Exports, paste0(RunName, "Fig_OS.png")), width = 16, height = 12, units = "cm")
 
@@ -194,66 +196,44 @@ ggsave(OS_gg, filename = file.path(Dir.Exports, paste0(RunName, "Fig_OS.png")), 
 
 # ERROR RATES ==================================================================
 print("INFERENCE ERROR RATES")
-stop("Continue here")
-ErrorRates_ls <- pblapply(names(Inference_ls), FUN = function(SimName) {
-  # SimName <- names(Inference_ls)[[98]]
-  x <- Inference_ls[[SimName]]
+ErrorRates_ls <- pblapply(Inference_ls[-1], FUN = function(Sim) {
+  # Sim <- Inference_ls[[98]]
 
-  ## matrices
-  True_mat <- sign(x$mats$True$Realised)
-  InferenceMats_ls <- c(x$mats$HMSC, list(COOCCUR = x$mats$COOCCUR))
+  methods_vec <- names(Sim$Inferrences)
+  mats <- lapply(methods_vec, function(x) {
+    Sim$Inferrences[[x]]$Effects * Sim$Inferrences[[x]]$Sig
+  })
+  names(mats) <- methods_vec
 
-  do.call(rbind, lapply(
-    names(InferenceMats_ls),
-    function(y) {
-      data.frame(
-        Values = c(
-          # true positive associations; how many of the inferred positive associations are correctly identified as such? - NaN means no positives in the inferred matrix
-          TP = sum((True_mat + InferenceMats_ls[[y]]) == 2, na.rm = TRUE) /
-            sum(InferenceMats_ls[[y]] == 1, na.rm = TRUE),
-          # true negative associations; how many of the inferred negative associations are correctly identified as such? - NaN means no negatives in the inferred matrix
-          TN = sum((True_mat + InferenceMats_ls[[y]]) == -2, na.rm = TRUE) /
-            sum(InferenceMats_ls[[y]] == -1, na.rm = TRUE),
-          # true absent; how many of the inferred absent interactions are correctly identified as such? - NaN means no absents in the inferred matrix
-          TA = sum((True_mat == 0) + (InferenceMats_ls[[y]] == 0) == 2, na.rm = TRUE) /
-            sum(InferenceMats_ls[[y]] == 0, na.rm = TRUE),
-
-          # falsely inferred positive; how many of the inferred positive associations are incorrectly identified as such?
-          FP = sum((True_mat != 1) + (InferenceMats_ls[[y]] == 1) == 2, na.rm = TRUE) /
-            sum(InferenceMats_ls[[y]] == 1, na.rm = TRUE),
-          # falsely inferred negative; how many of the inferred negative associations are incorrectly identified as such?
-          FN = sum((True_mat != -1) + (InferenceMats_ls[[y]] == -1) == 2, na.rm = TRUE) /
-            sum(InferenceMats_ls[[y]] == -1, na.rm = TRUE),
-          # false absent; how many of the inferred absent interactions are correctly identified as such?
-          FA = sum((True_mat != 0) + (InferenceMats_ls[[y]] == 0) == 2, na.rm = TRUE) /
-            sum(InferenceMats_ls[[y]] == 0, na.rm = TRUE),
-
-          # true positive links which were not inferred; how many of the true positive associations were not inferred?
-          MP = (sum((True_mat == 1) + (InferenceMats_ls[[y]] != 1) == 2, na.rm = TRUE) /
-            sum(True_mat == 1, na.rm = TRUE)),
-          # true negative links which were not inferred; how many of the true negative associations were not inferred?
-          MN = (sum((True_mat == -1) + (InferenceMats_ls[[y]] != -1) == 2, na.rm = TRUE) /
-            sum(True_mat == -1, na.rm = TRUE)),
-          # true absent links which were not inferred; how many of the true absent associations were not inferred?
-          MA = (sum((True_mat == 0) + (InferenceMats_ls[[y]] != 0) == 2, na.rm = TRUE) /
-            sum(True_mat == 0, na.rm = TRUE))
-        ),
-        Metric = c("TP", "TN", "TA", "FP", "FN", "FA", "MP", "MN", "MA"),
-        # Identifier
-        Approach = y,
-        SimName = SimName
-      )
-    }
-  ))
+  df <- do.call(rbind, lapply(methods_vec, FUN = function(method) {
+    df <- Val.ErrorRates(Sim$True$Realised, mats[[method]])
+    df$Approach <- method
+    df
+  }))
+  df
 })
 ErrorRates_df <- do.call(rbind, ErrorRates_ls)
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Occurrence.", replacement = "[O]")
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Abundance.", replacement = "[A]")
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Performance.", replacement = "[P]")
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Informed", replacement = "Clim")
-ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Naive", replacement = "")
-ErrorRates_df <- ErrorRates_df[ErrorRates_df$Approach != "COOCCUR", ]
-ErrorRates_df <- ErrorRates_df[ErrorRates_df$Metric %nin% c("FP", "FN", "FA"), ]
+# ErrorRates_df <- do.call(rbind, ErrorRates_ls)
+# ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Occurrence.", replacement = "[O]")
+# ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Abundance.", replacement = "[A]")
+# ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Performance.", replacement = "[P]")
+# ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Informed", replacement = "Clim")
+# ErrorRates_df$Approach <- gsub(as.character(ErrorRates_df$Approach), pattern = "Naive", replacement = "")
+# ErrorRates_df <- ErrorRates_df[ErrorRates_df$Approach != "COOCCUR", ]
+# ErrorRates_df <- ErrorRates_df[ErrorRates_df$Metric %nin% c("FP", "FN", "FA"), ]
+
+ErrorRates_df$Metric <- c(
+  "TP" = "True Positives",
+  "FP" = "False Positives",
+  "MP" = "Missed Positives",
+  "TN" = "True Negatives",
+  "FN" = "False Negatives",
+  "MN" = "Missed Negatives",
+  "TA" = "True Absent",
+  "FA" = "False Absent",
+  "MA" = "Missed Absent"
+)[ErrorRates_df$Metric]
+
 NonNA_count <- aggregate(Values ~ Approach + Metric,
   data = ErrorRates_df,
   function(x) {
@@ -264,26 +244,28 @@ NonNA_count <- aggregate(Values ~ Approach + Metric,
 colnames(NonNA_count)[3] <- "n"
 
 ER_gg <- ggplot(ErrorRates_df, aes(y = Values, x = factor(Approach, levels = cases))) +
-  geom_text(data = NonNA_count, aes(x = factor(Approach, levels = cases), y = 1.1, label = n)) +
-  geom_boxplot() +
+  geom_text(data = NonNA_count, aes(x = factor(Approach, levels = cases), y = 110, label = n)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
   facet_wrap(
     ~ factor(Metric, levels = c(
-      "TP",
-      # "FP",
-      "MP",
-      "TN",
-      # "FN",
-      "MN",
-      "TA",
-      # "FA",
-      "MA"
+      "True Positives",
+      "False Positives",
+      "Missed Positives",
+      "True Negatives",
+      "False Negatives",
+      "Missed Negatives",
+      "True Absent",
+      "False Absent",
+      "Missed Absent"
     )),
-    ncol = 2
+    ncol = 3
   ) +
   theme_bw() +
+  geom_hline(yintercept = 100, linetype = "dashed", color = "red") +
   labs(y = "Detection Rate [%]", x = "") +
-  lims(y = c(0, 1.1)) +
-  scale_y_continuous(breaks = seq(0, 1, 0.1))
+  lims(y = c(0, 140)) +
+  scale_y_continuous(breaks = seq(0, 100, 10))
 ER_gg
 ggsave(ER_gg,
   filename = file.path(Dir.Exports, paste0(RunName, "Fig_ErrorRates.png")),
@@ -293,18 +275,20 @@ ggsave(ER_gg,
 # BAEYSIAN MODELS ==============================================================
 print("BAYESIAN MODEL PREPAPARTION")
 # message("Detection of Positive, Negative, and Absent Associations")
-Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName) {
-  # SimName <- names(Inference_ls)[1]
-  x <- Inference_ls[[SimName]]
+Detection_ls <- pblapply(Inference_ls[-1], FUN = function(Sim) {
+  # Sim <- Inference_ls[[2]]
 
   ## matrices
-  True_mat <- abs(x$mats$True$Realised)
-  Mats_ls <- x$mats$True
-  InferenceMats_ls <- x$mats$HMSC
-  # c(x$mats$HMSC, list(COOCCUR = x$mats$COOCCUR))
+  True_mat <- Sim$True$Realised
 
-  ## trait diff
-  Traits <- aggregate(Trait ~ Species, data = x$ID_df, FUN = mean)
+  methods_vec <- names(Sim$Inferrences)
+  mats <- lapply(methods_vec, function(x) {
+    Sim$Inferrences[[x]]$Effects * Sim$Inferrences[[x]]$Sig
+  })
+  names(mats) <- methods_vec
+
+  ## trait diff; need ID_df here!!!!
+  Traits <- aggregate(Trait ~ Species, data = Sim$ID_df, FUN = mean)
   # Traits$Species <- gsub(Traits$Species, pattern = "Sp_", replacement = "")
   if (length(rownames(True_mat)[rownames(True_mat) %nin% Traits$Species]) > 0) {
     Traits <- rbind(
@@ -324,32 +308,34 @@ Detection_ls <- pblapply(names(Inference_ls), FUN = function(SimName) {
   EnvDiff_mat[lower.tri(EnvDiff_mat)] <- NA
   diag(EnvDiff_mat) <- NA
 
-  True_mat <- sign(Mats_ls[[1]])
-  Weighted_mat <- Mats_ls[[1]]
+  Weighted_mat <- True_mat
+  True_mat <- sign(Weighted_mat)
 
-  mode_ls <- lapply(names(InferenceMats_ls), FUN = function(k) {
+  mode_ls <- lapply(names(mats), FUN = function(k) {
+    # print(k)
     data.frame(
-      CorrectPos = as.numeric((True_mat + InferenceMats_ls[[k]]) == 2), # true positive
-      CorrectNeg = as.numeric((True_mat + InferenceMats_ls[[k]]) == -2), # true negative
-      CorrectAbsent = as.numeric(((True_mat == 0) + (InferenceMats_ls[[k]] == 0) == 2)), # true absent
-      Magnitude = abs(as.vector(Weighted_mat)),
+      CorrectPos = as.numeric((True_mat + sign(mats[[k]])) == 2), # true positive
+      CorrectNeg = as.numeric((True_mat + sign(mats[[k]])) == -2), # true negative
+      CorrectAbsent = as.numeric(((True_mat == 0) + (sign(mats[[k]]) == 0) == 2)), # true absent
+      MagnitudeTrue = abs(as.vector(Weighted_mat)),
+      MagnitudeInferred = abs(as.vector(as.matrix(mats[[k]]))),
       SignTrue = as.vector(sign(Weighted_mat)),
-      SignInferred = as.vector(InferenceMats_ls[[k]]),
+      SignInferred = sign(as.vector(as.matrix(mats[[k]]))),
       EnvDiff = as.vector(EnvDiff_mat),
-      Mode = k,
-      Sim = SimName
+      Mode = k
     )
   })
   do.call(rbind, mode_ls)
 })
-names(Detection_ls) <- names(Inference_ls)
+# names(Detection_ls) <- names(Inference_ls)
 Detection_df <- do.call(rbind, Detection_ls)
+Detection_df <- na.omit(Detection_df)
 # Detection_df <- Detection_df[Detection_df$Mode != "COOCCUR", ]
-Detection_df <- Detection_df[Detection_df$Mode %in% c(
-  "Abundance.Informed",
-  "Abundance.Naive",
-  "Occurrence.Naive"
-), ]
+# Detection_df <- Detection_df[Detection_df$Mode %in% c(
+#   "Abundance.Informed",
+#   "Abundance.Naive",
+#   "Occurrence.Naive"
+# ), ]
 
 ## detection classification
 print("DETECTION REGRESSION - likelihood of correct inference")
@@ -358,8 +344,10 @@ DetectionModels_df <- pblapply(
   X = unique(Detection_df$Mode),
   # cl = length(unique(Detection_df$Mode)),
   FUN = function(Model) {
-    # print(paste("########", Model))
+    # Model <- unique(Detection_df$Mode)[1]
+    print(paste("########", Model))
     model_df <- Detection_df[Detection_df$Mode == Model, ]
+    model_df$UnderlyingTrue <- model_df$SignTrue * model_df$MagnitudeTrue
 
     ## Correct Identification of Positive Associations -----------------------------
     # print("Models of Positive Associations")
@@ -367,7 +355,7 @@ DetectionModels_df <- pblapply(
       load(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Positive_", Model, ".RData")))
     } else {
       Bayes_Model_Positive <- brm(
-        formula = CorrectPos ~ Magnitude * EnvDiff,
+        formula = CorrectPos ~ UnderlyingTrue * EnvDiff,
         data = model_df,
         family = bernoulli(link = "logit"),
         warmup = nWarmup,
@@ -387,7 +375,7 @@ DetectionModels_df <- pblapply(
       load(file.path(Dir.Exports, paste0(RunName, "Bayes_Model_Negative_", Model, ".RData")))
     } else {
       Bayes_Model_Negative <- brm(
-        formula = CorrectNeg ~ Magnitude * EnvDiff,
+        formula = CorrectNeg ~ UnderlyingTrue * EnvDiff,
         data = model_df,
         family = bernoulli(link = "logit"),
         warmup = nWarmup,
@@ -433,10 +421,10 @@ InferenceModels_df <- pblapply(
   X = unique(Detection_df$Mode),
   # cl = length(unique(Detection_df$Mode)),
   FUN = function(Model) {
-    # print(paste("########", Model))
+    print(paste("########", Model))
     model_df <- Detection_df[Detection_df$Mode == Model, ]
     model_df <- model_df[!is.na(model_df$SignInferred), ]
-    model_df$Magnitude <- model_df$Magnitude * model_df$SignTrue
+    model_df$UnderlyingTrue <- model_df$SignTrue * model_df$MagnitudeTrue
 
     ## Correct Identification of Positive Associations -----------------------------
     # print("Models of Positive Associations")
@@ -446,7 +434,7 @@ InferenceModels_df <- pblapply(
       run_df <- model_df
       run_df$SignInferred[run_df$SignInferred != 1] <- 0
       Bayes_Model_Positive <- brm(
-        formula = SignInferred ~ Magnitude * EnvDiff,
+        formula = SignInferred ~ UnderlyingTrue * EnvDiff,
         data = run_df,
         family = bernoulli(link = "logit"),
         warmup = nWarmup,
@@ -469,7 +457,7 @@ InferenceModels_df <- pblapply(
       run_df$SignInferred[run_df$SignInferred != -1] <- 0
       run_df$SignInferred <- abs(run_df$SignInferred)
       Bayes_Model_Negative <- brm(
-        formula = SignInferred ~ Magnitude * EnvDiff,
+        formula = SignInferred ~ UnderlyingTrue * EnvDiff,
         data = run_df,
         family = bernoulli(link = "logit"),
         warmup = nWarmup,
@@ -516,6 +504,7 @@ names(InferenceModels_df) <- unique(Detection_df$Mode)
 
 ## Plotting --------------------------------------------------------------------
 print("BAYESIAN MODEL PLOTTING")
+stop("Continue here")
 FUN.BayesPlot <- function(Model_ls = DetectionModels_df,
                           which = "Occurrence.Informed",
                           colo = "Inference") {
@@ -642,54 +631,24 @@ dev.off()
 print("CONCEPTUAL VISUALISATION")
 # source("SimulationFrameworkFunctions.R")
 
-## Data Generation -------------------------------------------------------------
-print("Data Generation")
-if (file.exists(file.path(Dir.Concept, "ConceptSim.RData"))) {
-  load(file.path(Dir.Concept, "ConceptSim.RData"))
-} else {
-  start <- Sys.time()
-  Simulation_Output <- FUN.SimulationFramework(
-    seed = 5,
-    ## Network Creation
-    n_spec = 5,
-    NetworkType = "Association",
-    Sparcity = 0,
-    MaxStrength = 20,
-    ## Initial Individual Creation
-    n_individuals = 5e2,
-    n_mode = "each", # or "total"
-    Env_range = c(0, 10),
-    Trait_sd = 1,
-    ## Carrying Capacity Creation
-    k_range = c(300, 300),
-    ## Simulation Parameters
-    d0 = 0.4,
-    b0 = 0.6,
-    t_max = 20,
-    t_inter = 0.1,
-    sd = 5,
-    migration = 0.5,
-    Effect_Dis = 1,
-    verbose = TRUE
-  )
-  end <- Sys.time()
-  print(end - start)
-  save(Simulation_Output, file = file.path(Dir.Concept, "ConceptSim.RData"))
-}
+Treatment_Iter <- Data_fs[1]
+load(file.path(Dir.Data, paste0(paste0(strsplit(tools::file_path_sans_ext(Treatment_Iter), split = "_")[[1]][[1]], "_DEMO"), "_Environment.RData"))) # loads "Env_mat"
+load(file.path(Dir.Data, Treatment_Iter)) # loads list objects "SimResult", "Network_igraph", "CarryingK_vec", "Niches_vec"
 
 ## Input Data Visualisation ----------------------------------------------------
 print("Input Data Visualisation")
 
 ### starting constellation ----f
-first_df <- Simulation_Output$Simulation[[1]]
-first_df$Species <- factor(as.numeric(gsub(first_df$Species, pattern = "Sp_", replacement = "")))
+first_df <- SimResult[[1]]
+first_df$Species <- factor(gsub(first_df$Species, pattern = "Sp_", replacement = ""))
 Traits_df <- data.frame(
-  Traits = Simulation_Output$Traits,
-  Species = names(Simulation_Output$Traits)
+  Traits = Niches_vec,
+  Species = names(Niches_vec)
 )
 Traits_df$Species <- factor(gsub(Traits_df$Species,
   pattern = "Sp_", replacement = ""
 ))
+
 Initial_gg <- ggplot(
   first_df,
   aes(x = X, y = Y, col = Species, shape = Species)
@@ -705,26 +664,26 @@ Initial_gg <- ggplot(
     )
   ) +
   xlim(
-    eval(Simulation_Output$Call[["Env_range"]])[1],
-    eval(Simulation_Output$Call[["Env_range"]])[2]
+    as.numeric(head(colnames(Env_mat), 1)),
+    as.numeric(tail(colnames(Env_mat), 1))
   ) +
   theme_bw()
 Initial_gg
 
 ### ending constellation ----
 GridCoords <- seq(
-  from = eval(Simulation_Output$Call[["Env_range"]])[1],
-  to = eval(Simulation_Output$Call[["Env_range"]])[2],
+  from = as.numeric(head(colnames(Env_mat), 1)),
+  to = as.numeric(tail(colnames(Env_mat), 1)),
   length = n_Grid + 1
-)[-(n_Grid + 1)]
-ID_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
-last_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation)]]
-last_df$Species <- factor(as.numeric(gsub(last_df$Species, pattern = "Sp_", replacement = "")))
-ID2_df <- Simulation_Output$Simulation[[length(Simulation_Output$Simulation) - 1]]
+) # [-(n_Grid + 1)]
+ID_df <- SimResult[[length(SimResult)]]
+last_df <- SimResult[[length(SimResult)]]
+last_df$Species <- factor(gsub(last_df$Species, pattern = "Sp_", replacement = ""))
+ID2_df <- SimResult[[length(SimResult) - 1]]
 Traits_df <- aggregate(Trait ~ Species, data = ID_df, FUN = mean)
-Traits_df$Species <- factor(as.numeric(gsub(Traits_df$Species,
+Traits_df$Species <- factor(gsub(Traits_df$Species,
   pattern = "Sp_", replacement = ""
-)))
+))
 Final_gg <- ggplot(
   last_df,
   aes(x = X, y = Y, col = Species, shape = Species)
@@ -736,8 +695,8 @@ Final_gg <- ggplot(
   #            aes(xintercept = Trait,
   #                col = Species)) +
   xlim(
-    eval(Simulation_Output$Call[["Env_range"]])[1],
-    eval(Simulation_Output$Call[["Env_range"]])[2]
+    as.numeric(head(colnames(Env_mat), 1)),
+    as.numeric(tail(colnames(Env_mat), 1))
   ) +
   geom_vline(xintercept = GridCoords) +
   geom_hline(yintercept = GridCoords) +
@@ -803,8 +762,8 @@ grid_vis <- ggplot(
   geom_vline(xintercept = GridCoords) +
   geom_hline(yintercept = GridCoords) +
   xlim(
-    eval(Simulation_Output$Call[["Env_range"]])[1],
-    eval(Simulation_Output$Call[["Env_range"]])[2]
+    as.numeric(head(colnames(Env_mat), 1)),
+    as.numeric(tail(colnames(Env_mat), 1))
   ) +
   theme_bw()
 grid_vis
@@ -854,7 +813,7 @@ InputGrids_ls <- pblapply(c("Occurrence", "Abundance", "Performance"), FUN = fun
         high = plot_col[names(plot_col) == i]
       ) +
         guides(fill = guide_colourbar(
-          barwidth = 5,
+          barwidth = 8,
           barheight = 0.75,
           title = ""
         ))
@@ -865,7 +824,7 @@ InputGrids_ls <- pblapply(c("Occurrence", "Abundance", "Performance"), FUN = fun
         high = plot_col[names(plot_col) == i]
       ) +
         guides(fill = guide_colourbar(
-          barwidth = 5,
+          barwidth = 8,
           barheight = 0.75,
           title = ""
         ))
@@ -877,20 +836,20 @@ InputGrids_ls <- pblapply(c("Occurrence", "Abundance", "Performance"), FUN = fun
 })
 
 InputMatrices_gg <- plot_grid(Input_gg, # grid_vis
-  plot_grid(plotlist = InputGrids_ls, nrow = 3, labels = c("C", "D", "E")),
+  plot_grid(plotlist = InputGrids_ls[-3], nrow = 2, labels = c("C", "D")),
   ncol = 1, rel_heights = c(2.15, 3), labels = c("A", "")
 )
 InputMatrices_gg
 ggsave(InputMatrices_gg,
-  filename = file.path(Dir.Concept, "Fig_InputMatrices.png"),
-  width = 36, height = 40, units = "cm"
+  filename = file.path(Dir.Concept, paste0(RunName, "_Fig_InputMatrices.png")),
+  width = 36, height = 32, units = "cm"
 )
 
 ## Abundance Through Time ------------------------------------------------------
 print("Abundance Visualisation through Time")
-Abund_time <- pblapply(names(Simulation_Output$Simulation),
+Abund_time <- pblapply(names(SimResult),
   FUN = function(t) {
-    ID_iter <- Simulation_Output$Simulation[[t]]
+    ID_iter <- SimResult[[t]]
     cbind(data.frame(table(ID_iter$Species)), t)
   }
 )
@@ -906,7 +865,7 @@ AbundTime_gg <- ggplot(Abund_time, aes(x = t, y = Abundance, col = Species)) +
   scale_color_viridis_d() +
   theme_bw()
 ggsave(AbundTime_gg,
-  filename = file.path(Dir.Concept, "Fig_AbundanceTime.png"),
+  filename = file.path(Dir.Concept, paste0(RunName, "_Fig_AbundanceTime.png")),
   width = 30, height = 20, units = "cm"
 )
 
@@ -916,8 +875,8 @@ env.xy <- function(x = NULL, y = NULL) {
   x
 }
 gridseq <- seq(
-  from = eval(Simulation_Output$Call[["Env_range"]])[1],
-  to = eval(Simulation_Output$Call[["Env_range"]])[2],
+  from = as.numeric(head(colnames(Env_mat), 1)),
+  to = as.numeric(tail(colnames(Env_mat), 1)),
   length = 1e2
 )
 gridmat <- expand.grid(gridseq, gridseq)
@@ -937,32 +896,16 @@ Gradient_gg <- ggplot(gridmat, aes(x = x, y = y, fill = Phenotype)) +
   theme_bw() +
   theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
 ggsave(Gradient_gg,
-  filename = file.path(Dir.Concept, "Fig_SpatialGradient.png"),
+  filename = file.path(Dir.Concept, paste0(RunName, "_Fig_SpatialGradient.png")),
   width = 20, height = 22, units = "cm"
 )
 
 ## Network Inference -----------------------------------------------------------
 print("Network Inference")
-# source2 <- function(file, start, end, ...) {
-#   file.lines <- scan(file, what=character(), skip=start-1, nlines=end-start+1, sep='\n')
-#   file.lines.collapsed <- paste(file.lines, collapse='\n')
-#   source(textConnection(file.lines.collapsed), ...)
-# }
-# source2("Inference.R", 62, 360)
-
-models_ls <- FUN.Inference(Simulation_Output,
-  Dir.Models = Dir.Concept,
-  ModelSave = TRUE,
-  Dir.Exports = Dir.Concept,
-  Treatment_Iter = "Concept",
-  Cores = 4,
-  n_Grid = n_Grid
-)
-
 
 ## Network Realisation ---------------------------------------------------------
 ### True NonRealised ----
-net_mat <- models_ls$mats$True$NonRealised
+net_mat <- Inference_ls[[1]]$True$True
 edg_df1 <- melt(net_mat)
 colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
 TrueMat_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
@@ -978,12 +921,12 @@ TrueMat_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Stren
   scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365")
 
 ### Trait Difference ----
-SPTrait_df <- data.frame(Simulation_Output$Traits)
+SPTrait_df <- data.frame(Niches_vec)
 SPTrait_df$Species <- rownames(SPTrait_df)
 colnames(SPTrait_df) <- c("Trait", "Species")
 # SPTrait_df <- aggregate(ID_df, Trait ~ Species, FUN = mean) # might want to consider whether to delimit this by initialising or final trait values
 # SPTrait_df$SD <- aggregate(ID_df, Trait ~ Species, FUN = sd)$Trait
-SPTrait_df$SD <- 1
+SPTrait_df$SD <- Trait_sd
 SPTrait_mat <- abs(outer(SPTrait_df$Trait, SPTrait_df$Trait, "-"))
 colnames(SPTrait_mat) <- rownames(SPTrait_mat) <- SPTrait_df$Species
 SPTraitSD_mat <- abs(outer(SPTrait_df$SD, SPTrait_df$SD, "+"))
@@ -995,10 +938,10 @@ TraitDiff_mat[lower.tri(TraitDiff_mat)] <- NA
 
 d2.df <- reshape2::melt(TraitDiff_mat, c("x", "y"), value.name = "z")
 d2.df$Realised <- FALSE
-d2.df$Realised[which(d2.df$z < Simulation_Output$Call$sd + Simulation_Output$Call$Effect_Dis)] <- TRUE
+d2.df$Realised[which(d2.df$z <= Env_sd + Effect_Dis)] <- TRUE
 
 TraitDiff_gg <- ggplot(data = d2.df, aes(x = x, y = y, fill = z)) +
-  geom_tile(color = "black", lwd = 0.5, linetype = 1) +
+  geom_tile(color = "white", lwd = 0.5, linetype = 1) +
   coord_fixed() +
   guides(fill = guide_colourbar(
     barwidth = 2,
@@ -1006,7 +949,7 @@ TraitDiff_gg <- ggplot(data = d2.df, aes(x = x, y = y, fill = z)) +
     title = "Trait \n Difference"
   )) +
   scale_fill_viridis_c() +
-  geom_point(aes(shape = Realised)) +
+  geom_point(aes(shape = Realised), col = "white", size = 5) +
   scale_shape_manual(values = c(26, 15)) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = -20, hjust = 0)) +
@@ -1014,10 +957,9 @@ TraitDiff_gg <- ggplot(data = d2.df, aes(x = x, y = y, fill = z)) +
   guides(shape = "none")
 
 ### True Realised ----
-net_mat <- models_ls$mats$True$Realised
+net_mat <- Inference_ls[[1]]$True$Realised
 diag(net_mat) <- NA
-colnames(net_mat) <- rownames(net_mat) <- V(Simulation_Output$Network)
-True_mat <- net_mat
+# True_mat <- net_mat
 edg_df1 <- melt(net_mat)
 colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
 TrueMatReal_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
@@ -1034,46 +976,37 @@ TrueMatReal_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = S
 
 ### Plotting ----
 ggsave(cowplot::plot_grid(TrueMat_gg, TraitDiff_gg, TrueMatReal_gg, ncol = 3, labels = "AUTO"),
-  filename = file.path(Dir.Concept, "Fig_Realisation.png"),
+  filename = file.path(Dir.Concept, paste0(RunName, "_Fig_Realisation.png")),
   width = 42, height = 11, units = "cm"
 )
 
 ## Inference Visualisation -----------------------------------------------------
 PrepMat <- function(matrix = models_ls$mats$COOCCUR, edg_df2 = edg_df1, name = "COOCCUR") {
-  colnames(matrix) <- rownames(matrix) <- gsub(colnames(matrix), pattern = "Sp_", replacement = "")
+  matrix <- as.matrix(matrix$Effects * matrix$Sig)
+  class(matrix) <- "matrix"
+  # colnames(matrix) <- rownames(matrix) <- gsub(colnames(matrix), pattern = "Sp_", replacement = "")
   model_df <- melt(matrix)
   colnames(model_df) <- c("Partner 1", "Partner 2", "Strength")
+  model_df$Strength <- sign(model_df$Strength)
   model_df$Approach <- name
-  model_df$Correct <- model_df$Strength == sign(edg_df2$Strength)
+  model_df$Correct <- sign(model_df$Strength) == sign(edg_df2$value)
   model_df
 }
 
-# COOCCUR_plot <- PrepMat()
-# COOCCUR_plot <- ggplot(COOCCUR_plot, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
-#   geom_tile(color = "black", lwd = 0.5, linetype = 1) +
-#   coord_fixed() +
-#   guides(fill = guide_colourbar(barwidth = 2,
-#                                 barheight = 15,
-#                                 title = "Inferred \n Association")) +
-#   geom_point(aes(shape = Correct)) +
-#   scale_shape_manual(values = c(26, 15)) +
-#   theme_bw() +
-#   theme(axis.text.x=element_text(angle = -20, hjust = 0)) +
-#   scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") +
-#   guides(shape = "none")
-
-model_df <- do.call(rbind, lapply(names(models_ls$mats$HMSC), FUN = function(x) {
-  PrepMat(matrix = models_ls$mats$HMSC[[x]], name = x)
+model_df <- do.call(rbind, lapply(names(Inference_ls[[1]]$Inferrences$Inferrences), FUN = function(x) {
+  # print(x)
+  PrepMat(matrix = Inference_ls[[1]]$Inferrences$Inferrences[[x]], edg_df2 = edg_df1, name = x)
 }))
 
 cases <- as.character(unique(model_df$Approach))
-cases <- c(
-  # "COOCCUR",
-  rev(cases[startsWith(cases, "O")]),
-  rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")])
-)
+# cases <- c(
+#   # "COOCCUR",
+#   rev(cases[startsWith(cases, "O")]),
+#   rev(cases[startsWith(cases, "A")]), rev(cases[startsWith(cases, "P")])
+# )
 
-HMSC_plot <- ggplot(model_df, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
+model_df$Strength <- factor(model_df$Strength, levels = c(-1, 0, 1))
+Inference_plot <- ggplot(model_df, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
   geom_tile(color = "black", lwd = 0.5, linetype = 1) +
   coord_fixed() +
   guides(fill = guide_colourbar(
@@ -1086,7 +1019,11 @@ HMSC_plot <- ggplot(model_df, aes(x = `Partner 1`, y = `Partner 2`, fill = Stren
   theme_bw() +
   facet_wrap(~ factor(Approach, levels = cases), ncol = 3, dir = "v") +
   theme(axis.text.x = element_text(angle = -20, hjust = 0)) +
-  scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") +
+  scale_fill_manual(
+    values = c("-1" = "#5ab4ac", "0" = "white", "1" = "#d8b365"),
+    name = "Association"
+  ) +
+  # scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") +
   guides(shape = "none")
 
 cowplot::plot_grid(
@@ -1095,11 +1032,11 @@ cowplot::plot_grid(
     # ,
     # COOCCUR_plot
   ),
-  HMSC_plot + theme(plot.margin = unit(c(0, 0, 0, 0), "cm")),
+  Inference_plot + theme(plot.margin = unit(c(0, 0, 0, 0), "cm")),
   ncol = 1, rel_heights = c(2.5, 3), labels = "AUTO"
 )
 
 ggsave(
-  filename = file.path(Dir.Concept, "Fig_Inference.png"),
+  filename = file.path(Dir.Concept, paste0(RunName, "_Fig_Inference.png")),
   width = 24, height = 29, units = "cm"
 )
