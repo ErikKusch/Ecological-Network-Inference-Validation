@@ -46,13 +46,13 @@ package_vec <- c(
   "ggplot2", # for plotting
   "tidybayes", # for plotting
   "brms",
-  # "rethinking",
+  "rethinking",
   "reshape2",
   "cowplot",
-  # "scales",
+  "scales",
   "viridis",
-  "ggnewscale"
-  # "ggpubr"
+  "ggnewscale",
+  "ggpubr"
 )
 sapply(package_vec, install.load.package)
 

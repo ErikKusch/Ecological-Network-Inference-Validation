@@ -504,13 +504,13 @@ names(InferenceModels_df) <- unique(Detection_df$Mode)
 
 ## Plotting --------------------------------------------------------------------
 print("BAYESIAN MODEL PLOTTING")
-stop("Continue here")
 FUN.BayesPlot <- function(Model_ls = DetectionModels_df,
                           which = "Occurrence.Informed",
                           colo = "Inference") {
   plot1_ls <- Model_ls[which]
 
   return_ls <- pblapply(names(plot1_ls), FUN = function(NAME_iter) {
+    # NAME_iter <- names(plot1_ls)[1]
     plot_ls <- plot1_ls[[NAME_iter]]
     post_ls <- lapply(plot_ls, FUN = function(x) {
       Y <- posterior_samples(x)
@@ -524,13 +524,13 @@ FUN.BayesPlot <- function(Model_ls = DetectionModels_df,
     })
 
     ProbMat <- expand.grid(
-      seq(from = 0, to = 20, length.out = 1e2),
-      seq(from = 0, to = 5, length.out = 1e2)
+      seq(from = -1, to = 1, length.out = 1e2),
+      seq(from = 0, to = Env_sd + Effect_Dis, length.out = 1e2)
     )
     if (colo == "Inference") {
       ProbMat <- expand.grid(
-        seq(from = -20, to = 20, length.out = 1e2),
-        seq(from = 0, to = 5, length.out = 1e2)
+        seq(from = -1, to = 1, length.out = 1e2),
+        seq(from = 0, to = 20, length.out = 1e2)
       )
     }
     colnames(ProbMat) <- c("Magnitude", "EnvDiff")
@@ -538,6 +538,7 @@ FUN.BayesPlot <- function(Model_ls = DetectionModels_df,
     prob_ls <- lapply(plot_ls, FUN = function(x) {
       # prob_iter <- add_predicted_draws(newdata = ProbMat, object = x)
       post_df <- posterior_samples(x)
+      colnames(post_df) <- c("b_Intercept", "b_Magnitude", "b_EnvDiff", "b_Magnitude:EnvDiff", "Intercept", "lprior", "lp__")
       prob_iter <- ProbMat
       prob_iter$Prob <- apply(prob_iter, MARGIN = 1, FUN = function(x) {
         mean(inv_logit(post_df$b_Intercept +
@@ -905,7 +906,7 @@ print("Network Inference")
 
 ## Network Realisation ---------------------------------------------------------
 ### True NonRealised ----
-net_mat <- Inference_ls[[1]]$True$True
+net_mat <- Inference_ls[[1]]$True
 edg_df1 <- melt(net_mat)
 colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
 TrueMat_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
@@ -989,13 +990,13 @@ PrepMat <- function(matrix = models_ls$mats$COOCCUR, edg_df2 = edg_df1, name = "
   colnames(model_df) <- c("Partner 1", "Partner 2", "Strength")
   model_df$Strength <- sign(model_df$Strength)
   model_df$Approach <- name
-  model_df$Correct <- sign(model_df$Strength) == sign(edg_df2$value)
+  model_df$Correct <- sign(model_df$Strength) == sign(edg_df2$Strength)
   model_df
 }
 
-model_df <- do.call(rbind, lapply(names(Inference_ls[[1]]$Inferrences$Inferrences), FUN = function(x) {
+model_df <- do.call(rbind, lapply(names(Inference_ls[[1]]$Inferrences), FUN = function(x) {
   # print(x)
-  PrepMat(matrix = Inference_ls[[1]]$Inferrences$Inferrences[[x]], edg_df2 = edg_df1, name = x)
+  PrepMat(matrix = Inference_ls[[1]]$Inferrences[[x]], edg_df2 = edg_df1, name = x)
 }))
 
 cases <- as.character(unique(model_df$Approach))
@@ -1026,7 +1027,7 @@ Inference_plot <- ggplot(model_df, aes(x = `Partner 1`, y = `Partner 2`, fill = 
   # scale_fill_gradient2(low = "#5ab4ac", high = "#d8b365") +
   guides(shape = "none")
 
-cowplot::plot_grid(
+p <- cowplot::plot_grid(
   cowplot::plot_grid(
     TrueMatReal_gg
     # ,
@@ -1037,6 +1038,7 @@ cowplot::plot_grid(
 )
 
 ggsave(
+  p,
   filename = file.path(Dir.Concept, paste0(RunName, "_Fig_Inference.png")),
   width = 24, height = 29, units = "cm"
 )

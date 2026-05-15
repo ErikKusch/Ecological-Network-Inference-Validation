@@ -76,7 +76,7 @@ Fun.SurvNetwork <- function(Igraph, ID_df) {
 # ACTUAL INFERENCE =========================================================
 Inference_ls <- pblapply(
   Data_fs,
-  cl = 5,
+  cl = 10,
   FUN = function(Treatment_Iter) {
     # Treatment_Iter <- Data_fs[1]
     FNAME <- file.path(Dir.Models, basename(Treatment_Iter))
@@ -267,7 +267,7 @@ Inference_ls <- pblapply(
         Netassoc = Netassoc_results,
         HMSC = HMSC_results
       )
-      Inference_ls <- list(Inferrences = Inference_ls, True = list(True = NetMat_ls$True, Realised = NetMat_ls$Real))
+      Inference_ls <- list(Inferrences = Inference_ls, True = list(True = NetMat_ls$True, Realised = NetMat_ls$Real), ID_df = ID_df)
       save(
         Inference_ls,
         file = FNAME
