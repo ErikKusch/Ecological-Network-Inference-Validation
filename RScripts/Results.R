@@ -906,7 +906,7 @@ print("Network Inference")
 
 ## Network Realisation ---------------------------------------------------------
 ### True NonRealised ----
-net_mat <- Inference_ls[[1]]$True
+net_mat <- Inference_ls[[1]]$True$True
 edg_df1 <- melt(net_mat)
 colnames(edg_df1) <- c("Partner 1", "Partner 2", "Strength")
 TrueMat_gg <- ggplot(edg_df1, aes(x = `Partner 1`, y = `Partner 2`, fill = Strength)) +
